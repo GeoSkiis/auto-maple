@@ -181,6 +181,9 @@ Auto Maple has the ability to automatically solve "runes", or in-game arrow key 
     Download and unzip the latest <a href="https://github.com/GeoSkiis/auto-maple/releases">Auto Maple release</a>.
   </li>
   <li>
+    In Auto Maple's main directory, create a <code>.env</code> file from <code>.env.example</code> and fill in your RapidAPI details (the API URL and proxy secret from the <a href="https://rapidapi.com/ge0403p/api/rune-solver">Rune Solver API</a> page).
+  </li>
+  <li>
     Inside Auto Maple's main directory, open a command prompt and run:
     <pre><code>python -m pip install -r requirements.txt</code></pre>
   </li>
