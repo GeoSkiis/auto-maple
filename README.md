@@ -4,7 +4,7 @@
 
 Auto Maple is an intelligent Python AI that plays MapleStory, a 2D side-scrolling MMORPG, using simulated key presses, TensorFlow machine learning, OpenCV template matching, and other computer vision techniques.
 
-Community-created resources, such as **command books** for each class and **routines** for each map, can be found in the **[resources repository](https://github.com/tanjeffreyz/auto-maple-resources)**.
+Community-created resources, such as **command books** for each class and **routines** for each map, can be found in the **[resources repository](https://github.com/GeoSkiis/auto-maple-resources)**.
 
 <br>
 
@@ -72,7 +72,7 @@ Designed with modularity in mind, Auto Maple can operate any character in the ga
         <img src="https://user-images.githubusercontent.com/69165598/150469699-d8a94ab4-7d70-49c3-8736-a9018996f39a.png"/>
         <br>
         <sub>
-          Click <a href="https://github.com/tanjeffreyz02/auto-maple/blob/f13d87c98e9344e0a4fa5c6f85ffb7e66860afc0/routines/dcup2.csv">here</a> to view the entire routine.
+          Click <a href="https://github.com/GeoSkiis/auto-maple/blob/f13d87c98e9344e0a4fa5c6f85ffb7e66860afc0/routines/dcup2.csv">here</a> to view the entire routine.
         </sub>
       </p>
     </td>
@@ -102,7 +102,7 @@ Below is a summary of the most commonly used routine components:
     <b><code>Jump</code></b> jumps to the given label from anywhere in the routine.
   </li>
   <li>
-    <b><code>Setting</code></b> updates the specified setting to the given value. It can be placed anywhere in the routine, so different parts of the same routine can have different settings. All editable settings can be found at the bottom of <a href="https://github.com/tanjeffreyz02/auto-maple/blob/v2/settings.py">settings.py</a>.
+    <b><code>Setting</code></b> updates the specified setting to the given value. It can be placed anywhere in the routine, so different parts of the same routine can have different settings. All editable settings can be found at the bottom of <a href="https://github.com/GeoSkiis/auto-maple/blob/v2/settings.py">settings.py</a>.
   </li>
 </ul>
     </td>
@@ -129,7 +129,7 @@ Below is a summary of the most commonly used routine components:
 <table align="center" border="0">
   <tr>
     <td width="100%">
-Auto Maple has the ability to automatically solve "runes", or in-game arrow key puzzles. It first uses OpenCV's color filtration and <b>Canny edge detection</b> algorithms to isolate the arrow keys and reduce as much background noise as possible. Then, it runs multiple inferences on the preprocessed frames using a custom-trained <b>TensorFlow</b> model until two inferences agree. Because of this preprocessing, Auto Maple is extremely accurate at solving runes in all kinds of (often colorful and chaotic) environments.
+Auto Maple has the ability to automatically solve "runes", or in-game arrow key puzzles, using a proprietary online rune solver API. See the Setup section below for how to sign up.
     </td>
   </tr>
 </table>
@@ -169,19 +169,16 @@ Auto Maple has the ability to automatically solve "runes", or in-game arrow key 
 
 <ol>
   <li>
-    Download and install <a href="https://www.python.org/downloads/">Python3</a>.
-  </li>
-  <li>
-    Download and install the latest version of <a href="https://developer.nvidia.com/cuda-downloads">CUDA Toolkit</a>.
+    Create an account on <a href="https://rapidapi.com/">RapidAPI</a> and get your RapidAPI key. Then go to the <a href="https://rapidapi.com/ge0403p/api/rune-solver">Rune Solver API</a> page and subscribe to the <b>free tier</b> (required for automatic rune solving).
   </li>
   <li>
     Download and install <a href="https://git-scm.com/download/win">Git</a>.
   </li>
   <li>
-    Download and unzip the latest <a href="https://github.com/tanjeffreyz02/auto-maple/releases">Auto Maple release</a>.
+    Download and install <a href="https://www.python.org/downloads/">Python3</a> (3.12 is best).
   </li>
   <li>
-    Download the <a href="https://drive.google.com/drive/folders/1SPdTNF4KZczoWyWTgfyTBRvLvy7WSGpu?usp=sharing">TensorFlow model</a> and unzip the "models" folder into Auto Maple's "assets" directory.
+    Download and unzip the latest <a href="https://github.com/GeoSkiis/auto-maple/releases">Auto Maple release</a>.
   </li>
   <li>
     Inside Auto Maple's main directory, open a command prompt and run:

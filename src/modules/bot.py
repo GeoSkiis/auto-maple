@@ -1,15 +1,14 @@
 """An interpreter that reads and executes user-created routines."""
 
+import os
+import re
 import threading
 import time
 import git
 import cv2
-import inspect
-import importlib
-import traceback
-from os.path import splitext, basename
+from PIL import Image
 from src.common import config, utils
-from src.detection import detection
+from src.detection.detection import ArrowPredictionClient, crop_to_640x640
 from src.routine import components
 from src.routine.routine import Routine
 from src.command_book.command_book import CommandBook
@@ -21,6 +20,9 @@ from src.common.interfaces import Configurable
 # The rune's buff icon
 RUNE_BUFF_TEMPLATE = cv2.imread('assets/rune_buff_template.jpg', 0)
 
+# Folder for saving frames when rune detection fails (project root)
+FAILED_DETECTIONS_FOLDER = "failed_detections"
+attempts = 0
 
 class Bot(Configurable):
     """A class that interprets and executes user-defined routines."""
@@ -41,13 +43,7 @@ class Bot(Configurable):
         self.rune_closest_pos = (0, 0)      # Location of the Point closest to rune
         self.submodules = []
         self.command_book = None            # CommandBook instance
-        # self.module_name = None
-        # self.buff = components.Buff()
-
-        # self.command_book = {}
-        # for c in (components.Wait, components.Walk, components.Fall,
-        #           components.Move, components.Adjust, components.Buff):
-        #     self.command_book[c.__name__.lower()] = c
+        self.prediction_client = ArrowPredictionClient()
 
         config.routine = Routine()
 
@@ -71,15 +67,13 @@ class Bot(Configurable):
         :return:    None
         """
 
-        print('\n[~] Initializing detection algorithm:\n')
-        model = detection.load_model()
-        print('\n[~] Initialized detection algorithm')
+        print('\n[~] No detection algorithm onboard, offloaded to a server')
 
         self.ready = True
         config.listener.enabled = True
         last_fed = time.time()
         while True:
-            if config.enabled and len(config.routine) > 0:
+            if config.enabled and len(config.routine) > 0 and self.command_book is not None:
                 # Buff and feed pets
                 self.command_book.buff.main()
                 pet_settings = config.gui.settings.pets
@@ -98,57 +92,101 @@ class Bot(Configurable):
                 element = config.routine[config.routine.index]
                 if self.rune_active and isinstance(element, Point) \
                         and element.location == self.rune_closest_pos:
-                    self._solve_rune(model)
+                    self._solve_rune()
                 element.execute()
                 config.routine.step()
             else:
                 time.sleep(0.01)
 
     @utils.run_if_enabled
-    def _solve_rune(self, model):
+    def _solve_rune(self):
         """
         Moves to the position of the rune and solves the arrow-key puzzle.
-        :param model:   The TensorFlow model to classify with.
-        :param sct:     The mss instance object with which to take screenshots.
-        :return:        None
+        Uses the Arrow Prediction API (env: ARROW_API_URL, PROXY_SECRET).
+        :return:    None
         """
-
+        global attempts
+        print("attempt: ", str(attempts))
         move = self.command_book['move']
         move(*self.rune_pos).execute()
         adjust = self.command_book['adjust']
         adjust(*self.rune_pos).execute()
-        time.sleep(0.2)
+        time.sleep(0.4)
+        adjust(*self.rune_pos).execute()
+        time.sleep(0.4)
         press(self.config['Interact'], 1, down_time=0.2)        # Inherited from Configurable
 
         print('\nSolving rune:')
-        inferences = []
-        for _ in range(15):
+        solution_found = False
+        frame = None
+        for i in range(3):
             frame = config.capture.frame
-            solution = detection.merge_detection(model, frame)
-            if solution:
+            solution = self.prediction_client.predict_from_frame(frame)
+
+            print(f"Solution {i}: {solution}")
+            if solution and len(solution) == 4:
                 print(', '.join(solution))
-                if solution in inferences:
-                    print('Solution found, entering result')
-                    for arrow in solution:
-                        press(arrow, 1, down_time=0.1)
-                    time.sleep(1)
-                    for _ in range(3):
-                        time.sleep(0.3)
-                        frame = config.capture.frame
-                        rune_buff = utils.multi_match(frame[:frame.shape[0] // 8, :],
-                                                      RUNE_BUFF_TEMPLATE,
-                                                      threshold=0.9)
-                        if rune_buff:
-                            rune_buff_pos = min(rune_buff, key=lambda p: p[0])
-                            target = (
-                                round(rune_buff_pos[0] + config.capture.window['left']),
-                                round(rune_buff_pos[1] + config.capture.window['top'])
-                            )
-                            click(target, button='right')
-                    self.rune_active = False
-                    break
-                elif len(solution) == 4:
-                    inferences.append(solution)
+                print('Solution found, entering result')
+                for arrow in solution:
+                    press(arrow, 1, down_time=0.1)
+                time.sleep(1)
+                for _ in range(3):
+                    time.sleep(0.3)
+                    rune_buff = utils.multi_match(frame[:frame.shape[0] // 8, :],
+                                                 RUNE_BUFF_TEMPLATE,
+                                                 threshold=0.9)
+                    if rune_buff:
+                        rune_buff_pos = min(rune_buff, key=lambda p: p[0])
+                        target = (
+                            round(rune_buff_pos[0] + config.capture.window['left']),
+                            round(rune_buff_pos[1] + config.capture.window['top'])
+                        )
+                        click(target, button='right')
+                self.rune_active = False
+                attempts = 0
+                solution_found = True
+                break
+        if not solution_found and frame is not None:
+            self._save_failed_detection(frame)
+        attempts += 1
+        if attempts % 3 == 0:
+            utils.enter_cash_shop()
+            utils.exit_cash_shop()
+        if attempts > 9:
+            self.rune_active = False
+        if attempts > 20:
+            os.system('taskkill /f /im "MapleStory.exe"')
+            os.system(f'taskkill /f /pid {os.getpid()}')
+
+    def _get_next_failed_image_number(self):
+        """
+        Return the next sequential number for failed detection images.
+        Scans existing image_1.png, image_2.png, ... so numbering persists across restarts.
+        """
+        os.makedirs(FAILED_DETECTIONS_FOLDER, exist_ok=True)
+        max_num = 0
+        for name in os.listdir(FAILED_DETECTIONS_FOLDER):
+            m = re.match(r'image_(\d+)\.png', name, re.IGNORECASE)
+            if m:
+                max_num = max(max_num, int(m.group(1)))
+        return max_num + 1
+
+    def _save_failed_detection(self, frame, vertical_offset: int = 50):
+        """Save a frame to failed_detections/image_N.png when rune detection fails. Crops to 640x640 like detection."""
+        try:
+            os.makedirs(FAILED_DETECTIONS_FOLDER, exist_ok=True)
+            next_num = self._get_next_failed_image_number()
+            failed_image_path = os.path.join(FAILED_DETECTIONS_FOLDER, f'image_{next_num}.png')
+            if frame.ndim == 3 and frame.shape[2] == 4:
+                rgb = frame[..., :3][..., ::-1].copy()
+            else:
+                rgb = frame[..., ::-1].copy()
+            img = Image.fromarray(rgb)
+            img_cropped = crop_to_640x640(img, vertical_offset=vertical_offset)
+            img_cropped.save(failed_image_path)
+            print(f"Saved failed detection to {failed_image_path}")
+        except Exception as e:
+            print(f"Error saving failed detection: {e}")
 
     def load_commands(self, file):
         try:
@@ -156,77 +194,6 @@ class Bot(Configurable):
             config.gui.settings.update_class_bindings()
         except ValueError:
             pass    # TODO: UI warning popup, say check cmd for errors
-        #
-        # utils.print_separator()
-        # print(f"[~] Loading command book '{basename(file)}':")
-        #
-        # ext = splitext(file)[1]
-        # if ext != '.py':
-        #     print(f" !  '{ext}' is not a supported file extension.")
-        #     return False
-        #
-        # new_step = components.step
-        # new_cb = {}
-        # for c in (components.Wait, components.Walk, components.Fall):
-        #     new_cb[c.__name__.lower()] = c
-        #
-        # # Import the desired command book file
-        # module_name = splitext(basename(file))[0]
-        # target = '.'.join(['resources', 'command_books', module_name])
-        # try:
-        #     module = importlib.import_module(target)
-        #     module = importlib.reload(module)
-        # except ImportError:     # Display errors in the target Command Book
-        #     print(' !  Errors during compilation:\n')
-        #     for line in traceback.format_exc().split('\n'):
-        #         line = line.rstrip()
-        #         if line:
-        #             print(' ' * 4 + line)
-        #     print(f"\n !  Command book '{module_name}' was not loaded")
-        #     return
-        #
-        # # Check if the 'step' function has been implemented
-        # step_found = False
-        # for name, func in inspect.getmembers(module, inspect.isfunction):
-        #     if name.lower() == 'step':
-        #         step_found = True
-        #         new_step = func
-        #
-        # # Populate the new command book
-        # for name, command in inspect.getmembers(module, inspect.isclass):
-        #     new_cb[name.lower()] = command
-        #
-        # # Check if required commands have been implemented and overridden
-        # required_found = True
-        # for command in [components.Buff]:
-        #     name = command.__name__.lower()
-        #     if name not in new_cb:
-        #         required_found = False
-        #         new_cb[name] = command
-        #         print(f" !  Error: Must implement required command '{name}'.")
-        #
-        # # Look for overridden movement commands
-        # movement_found = True
-        # for command in (components.Move, components.Adjust):
-        #     name = command.__name__.lower()
-        #     if name not in new_cb:
-        #         movement_found = False
-        #         new_cb[name] = command
-        #
-        # if not step_found and not movement_found:
-        #     print(f" !  Error: Must either implement both 'Move' and 'Adjust' commands, "
-        #           f"or the function 'step'")
-        # if required_found and (step_found or movement_found):
-        #     self.module_name = module_name
-        #     self.command_book = new_cb
-        #     self.buff = new_cb['buff']()
-        #     components.step = new_step
-        #     config.gui.menu.file.enable_routine_state()
-        #     config.gui.view.status.set_cb(basename(file))
-        #     config.routine.clear()
-        #     print(f" ~  Successfully loaded command book '{module_name}'")
-        # else:
-        #     print(f" !  Command book '{module_name}' was not loaded")
 
     def update_submodules(self, force=False):
         """

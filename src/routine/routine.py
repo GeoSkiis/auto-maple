@@ -158,8 +158,8 @@ class Routine:
     @utils.run_if_enabled
     def step(self):
         """Increments config.seq_index and wraps back to 0 at the end of config.sequence."""
-
-        self.index = (self.index + 1) % len(self.sequence)
+        self.index = random.randint(0, len(self.sequence) - 1)
+        # self.index = (self.index + 1) % len(self.sequence)
 
     def save(self, file_path):
         """Encodes and saves the current Routine at location PATH."""

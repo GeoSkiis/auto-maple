@@ -2,10 +2,12 @@
 
 import math
 import queue
+import time
 import cv2
 import threading
 import numpy as np
 from src.common import config, settings
+from src.common.vkeys import press
 from random import random
 
 
@@ -247,6 +249,28 @@ class Async(threading.Thread):
             except queue.Empty:
                 root.after(100, self.process_queue(root))
         return f
+
+
+def enter_cash_shop(repeat: int = 10):
+    """
+    Send F5 + Enter repeatedly to open the cash shop.
+    :param repeat: Number of F5+Enter cycles (default 10).
+    """
+    for _ in range(repeat):
+        press("f5", 1, down_time=0.1)
+        press("enter", 1, down_time=0.1)
+        time.sleep(1)
+
+
+def exit_cash_shop():
+    """Send Esc/Enter sequence to leave the cash shop and wait for loading."""
+    time.sleep(5)
+    press("esc", 1, down_time=0.1)
+    time.sleep(1)
+    press("esc", 1, down_time=0.1)
+    time.sleep(1)
+    press("enter", 1, down_time=0.1)
+    time.sleep(5)
 
 
 def async_callback(context, function, *args, **kwargs):

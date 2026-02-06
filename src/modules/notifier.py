@@ -28,6 +28,17 @@ OTHER_TEMPLATE = cv2.cvtColor(other_filtered, cv2.COLOR_BGR2GRAY)
 # The Elite Boss's warning sign
 ELITE_TEMPLATE = cv2.imread('assets/elite_template.jpg', 0)
 
+# Pollo Message
+POLLO_TEMPLATE = cv2.imread('assets/pollo_template.png', 0)
+
+# Fritto Message
+FRITTO_TEMPLATE = cv2.imread('assets/fritto_template.png', 0)
+
+# Especia Message
+ESPECIA_TEMPLATE = cv2.imread('assets/especia_template.png', 0)
+
+# Twentoona Message
+TWENTOONA_TEMPLATE = cv2.imread('assets/twentoona_template.png', 0)
 
 def get_alert_path(name):
     return os.path.join(Notifier.ALERTS_DIR, f'{name}.mp3')
@@ -68,13 +79,51 @@ class Notifier:
                 # Check for unexpected black screen
                 gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
                 if np.count_nonzero(gray < 15) / height / width > self.room_change_threshold:
-                    self._alert('siren')
+                    time.sleep(40)
+                    frame = config.capture.frame
+                    height, width, _ = frame.shape
+                    minimap = config.capture.minimap['minimap']
+
+                    # Check for unexpected black screen
+                    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                    if np.count_nonzero(gray < 15) / height / width > self.room_change_threshold:
+                        self._alert('siren')
+
+                # Check for Pollo Message
+                interrupting_message_frame = frame[height // 4:3 * height // 4, :]
+                # cv2.imwrite('interrupting_frame.png', interrupting_message_frame)
+                pollo = utils.multi_match(interrupting_message_frame, POLLO_TEMPLATE, threshold=0.9)
+                if len(pollo) > 0:
+                    print("Pollo Message Detected")
+                    print(pollo)
+                    press("esc", 1, down_time=0.1)
+
+                # Check for Fritto Message
+                fritto = utils.multi_match(interrupting_message_frame, FRITTO_TEMPLATE, threshold=0.9)
+                if len(fritto) > 0:
+                    print("Fritto Message Detected")
+                    print(fritto)
+                    press("esc", 1, down_time=0.1)
+
+                # Check for Especia Message
+                especia = utils.multi_match(interrupting_message_frame, ESPECIA_TEMPLATE, threshold=0.9)
+                if len(especia) > 0:
+                    print("Especia Message Detected")
+                    print(especia)
+                    press("esc", 1, down_time=0.1)
+
+                # Check for Twentoona Message
+                twentoona = utils.multi_match(interrupting_message_frame, TWENTOONA_TEMPLATE, threshold=0.9)
+                if len(twentoona) > 0:
+                    print("Twentoona Message Detected")
+                    print(twentoona)
+                    press("esc", 1, down_time=0.1)
 
                 # Check for elite warning
-                elite_frame = frame[height // 4:3 * height // 4, width // 4:3 * width // 4]
-                elite = utils.multi_match(elite_frame, ELITE_TEMPLATE, threshold=0.9)
+                elite = utils.multi_match(interrupting_message_frame, ELITE_TEMPLATE, threshold=0.9)
                 if len(elite) > 0:
-                    self._alert('siren')
+                    print("Elite Boss Detected")
+                #     self._alert('siren')
 
                 # Check for other players entering the map
                 filtered = utils.filter_color(minimap, OTHER_RANGES)
@@ -99,9 +148,9 @@ class Notifier:
                         config.bot.rune_closest_pos = config.routine[index].location
                         config.bot.rune_active = True
                         self._ping('rune_appeared', volume=0.75)
-                elif now - rune_start_time > self.rune_alert_delay:     # Alert if rune hasn't been solved
-                    config.bot.rune_active = False
-                    self._alert('siren')
+                # elif now - rune_start_time > self.rune_alert_delay:     # Alert if rune hasn't been solved
+                #     config.bot.rune_active = False
+                #     self._alert('siren')
             time.sleep(0.05)
 
     def _alert(self, name, volume=0.75):
