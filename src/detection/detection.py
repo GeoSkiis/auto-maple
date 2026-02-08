@@ -5,6 +5,7 @@ import os
 import numpy as np
 import httpx
 from PIL import Image
+from urllib.parse import urlparse
 
 from dotenv import load_dotenv
 
@@ -81,6 +82,15 @@ class ArrowPredictionClient:
             self.client = httpx.AsyncClient(timeout=30.0)
         return self.client
 
+    def _request_headers(self) -> dict:
+        """Headers required by RapidAPI: x-rapidapi-key and x-rapidapi-host."""
+        host = urlparse(self.api_url).netloc
+        return {
+            "Content-Type": "application/json",
+            "x-rapidapi-host": host,
+            "x-rapidapi-key": self.proxy_secret,
+        }
+
     async def _predict_async(self, image_path: str, vertical_offset: int = 50) -> list[str]:
         if not os.path.exists(image_path):
             raise FileNotFoundError(f"Image not found: {image_path}")
@@ -97,13 +107,13 @@ class ArrowPredictionClient:
 
         img_bytes = io.BytesIO()
         img_cropped.save(img_bytes, format="JPEG", quality=95)
-        file_data = img_bytes.getvalue()
+        image_base64 = base64.b64encode(img_bytes.getvalue()).decode("utf-8")
 
         client = await self._get_client()
-        filename = os.path.basename(image_path)
-        files = {"file": (filename, file_data, "image/jpeg")}
-        headers = {"X-RapidAPI-Proxy-Secret": self.proxy_secret}
-        response = await client.post(self.api_url, files=files, headers=headers)
+        payload = {"image": image_base64}
+        response = await client.post(
+            self.api_url, json=payload, headers=self._request_headers()
+        )
 
         if response.status_code == 200:
             data = response.json()
@@ -120,10 +130,9 @@ class ArrowPredictionClient:
     ) -> list[str]:
         image_base64 = _frame_to_base64_jpeg(frame, vertical_offset=vertical_offset)
         client = await self._get_client()
-        headers = {"X-RapidAPI-Proxy-Secret": self.proxy_secret}
         payload = {"image": image_base64}
         response = await client.post(
-            self.api_url, json=payload, headers=headers
+            self.api_url, json=payload, headers=self._request_headers()
         )
         if response.status_code == 200:
             data = response.json()
