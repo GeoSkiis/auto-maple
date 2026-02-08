@@ -5,6 +5,7 @@ import csv
 from os.path import splitext, basename
 from src.routine.components import Point, Label, Jump, Setting, Command, SYMBOLS
 from src.routine.layout import Layout
+import random
 
 
 def update(func):
