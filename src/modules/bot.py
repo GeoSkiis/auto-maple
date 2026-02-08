@@ -145,7 +145,7 @@ class Bot(Configurable):
                         self.rune_active = False
                         attempts = 0
                         solution_found = True
-                        break
+                break
         if not solution_found and frame is not None:
             self._save_failed_detection(frame)
         attempts += 1
