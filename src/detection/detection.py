@@ -91,58 +91,70 @@ class ArrowPredictionClient:
             "x-rapidapi-key": self.proxy_secret,
         }
 
-    async def _predict_async(self, image_path: str, vertical_offset: int = 50) -> list[str]:
+    async def _predict_async(self, image_path: str, vertical_offset: int = 50) -> list[str] | None:
         if not os.path.exists(image_path):
             raise FileNotFoundError(f"Image not found: {image_path}")
+        try:
+            img = Image.open(image_path)
+            img_cropped = crop_to_640x640(img, vertical_offset=vertical_offset)
 
-        img = Image.open(image_path)
-        img_cropped = crop_to_640x640(img, vertical_offset=vertical_offset)
+            if img_cropped.mode == "RGBA":
+                rgb_img = Image.new("RGB", img_cropped.size, (255, 255, 255))
+                rgb_img.paste(img_cropped, mask=img_cropped.split()[3])
+                img_cropped = rgb_img
+            elif img_cropped.mode != "RGB":
+                img_cropped = img_cropped.convert("RGB")
 
-        if img_cropped.mode == "RGBA":
-            rgb_img = Image.new("RGB", img_cropped.size, (255, 255, 255))
-            rgb_img.paste(img_cropped, mask=img_cropped.split()[3])
-            img_cropped = rgb_img
-        elif img_cropped.mode != "RGB":
-            img_cropped = img_cropped.convert("RGB")
+            img_bytes = io.BytesIO()
+            img_cropped.save(img_bytes, format="JPEG", quality=95)
+            image_base64 = base64.b64encode(img_bytes.getvalue()).decode("utf-8")
 
-        img_bytes = io.BytesIO()
-        img_cropped.save(img_bytes, format="JPEG", quality=95)
-        image_base64 = base64.b64encode(img_bytes.getvalue()).decode("utf-8")
+            client = await self._get_client()
+            payload = {"image": image_base64}
+            response = await client.post(
+                self.api_url, json=payload, headers=self._request_headers()
+            )
 
-        client = await self._get_client()
-        payload = {"image": image_base64}
-        response = await client.post(
-            self.api_url, json=payload, headers=self._request_headers()
-        )
+            if response.status_code == 200:
+                data = response.json()
+                return data["solution"] if isinstance(data, dict) and "solution" in data else data
+            print(f"[Rune solver] API error {response.status_code}: {response.text}")
+            return None
+        except Exception as e:
+            print(f"[Rune solver] Request failed: {e}")
+            return None
 
-        if response.status_code == 200:
-            data = response.json()
-            return data["solution"] if isinstance(data, dict) and "solution" in data else data
-        else:
-            raise Exception(f"API error {response.status_code}: {response.text}")
-
-    def predict(self, image_path: str, vertical_offset: int = 50) -> list[str]:
+    def predict(self, image_path: str, vertical_offset: int = 50) -> list[str] | None:
         loop = self._get_loop()
         return loop.run_until_complete(self._predict_async(image_path, vertical_offset=vertical_offset))
 
     async def _predict_from_frame_async(
         self, frame: np.ndarray, vertical_offset: int = 50
-    ) -> list[str]:
-        image_base64 = _frame_to_base64_jpeg(frame, vertical_offset=vertical_offset)
-        client = await self._get_client()
-        payload = {"image": image_base64}
-        response = await client.post(
-            self.api_url, json=payload, headers=self._request_headers()
-        )
-        if response.status_code == 200:
-            data = response.json()
-            return data["solution"] if isinstance(data, dict) and "solution" in data else data
-        raise Exception(f"API error {response.status_code}: {response.text}")
+    ) -> list[str] | None:
+        try:
+            image_base64 = _frame_to_base64_jpeg(frame, vertical_offset=vertical_offset)
+            client = await self._get_client()
+            payload = {"image": image_base64}
+            response = await client.post(
+                self.api_url, json=payload, headers=self._request_headers()
+            )
+            if response.status_code == 200:
+                data = response.json()
+                return data["solution"] if isinstance(data, dict) and "solution" in data else data
+            print(f"[Rune solver] API error {response.status_code}: {response.text}")
+            return None
+        except Exception as e:
+            print(f"[Rune solver] Request failed: {e}")
+            return None
 
     def predict_from_frame(
         self, frame: np.ndarray, vertical_offset: int = 50
-    ) -> list[str]:
-        loop = self._get_loop()
-        return loop.run_until_complete(
-            self._predict_from_frame_async(frame, vertical_offset=vertical_offset)
-        )
+    ) -> list[str] | None:
+        try:
+            loop = self._get_loop()
+            return loop.run_until_complete(
+                self._predict_from_frame_async(frame, vertical_offset=vertical_offset)
+            )
+        except Exception as e:
+            print(f"[Rune solver] Request failed: {e}")
+            return None
