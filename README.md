@@ -173,23 +173,27 @@ Auto Maple has the ability to automatically solve "runes", or in-game arrow key 
   </li>
   <li>
     Download and install <a href="https://git-scm.com/download/win">Git</a>.
+    <pre><code>winget install -e --id Git.Git</code></pre>
   </li>
   <li>
     Download and install <a href="https://www.python.org/downloads/">Python3</a> (3.12 is best).
+    <pre><code>winget install -e --id Python.Python.3.12</code></pre>
   </li>
   <li>
     Download and unzip the latest <a href="https://github.com/GeoSkiis/auto-maple/releases">Auto Maple release</a>.
+    <pre><code>git clone https://github.com/GeoSkiis/auto-maple</code></pre>
   </li>
   <li>
     In Auto Maple's main directory, create a <code>.env</code> file from <code>.env.example</code> and fill in your RapidAPI details (the API URL and proxy secret from the <a href="https://rapidapi.com/ge0403p/api/rune-solver">Rune Solver API</a> page).
+    <pre><code>copy env.example .env</code></pre>
   </li>
   <li>
     Inside Auto Maple's main directory, open a command prompt and run:
-    <pre><code>python -m pip install -r requirements.txt</code></pre>
+    <pre><code>pip install -r requirements.txt</code></pre>
   </li>
   <li>
     Lastly, create a desktop shortcut by running:
-    <pre><code>python setup.py</code></pre>
+    <pre><code>python setup.py --stay</code></pre>
     This shortcut uses absolute paths, so feel free to move it wherever you want. However, if you move Auto Maple's main directory, you will need to run <code>python setup.py</code> again to generate a new shortcut. To keep the command prompt open after Auto Maple closes, run the above command with the <code>--stay</code> flag.
   </li>
 </ol>
