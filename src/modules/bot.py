@@ -142,10 +142,10 @@ class Bot(Configurable):
                             round(rune_buff_pos[1] + config.capture.window['top'])
                         )
                         click(target, button='right')
-                self.rune_active = False
-                attempts = 0
-                solution_found = True
-                break
+                        self.rune_active = False
+                        attempts = 0
+                        solution_found = True
+                        break
         if not solution_found and frame is not None:
             self._save_failed_detection(frame)
         attempts += 1
