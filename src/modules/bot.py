@@ -134,7 +134,7 @@ class Bot(Configurable):
                     time.sleep(0.3)
                     rune_buff = utils.multi_match(frame[:frame.shape[0] // 8, :],
                                                  RUNE_BUFF_TEMPLATE,
-                                                 threshold=0.9)
+                                                 threshold=0.7)
                     if rune_buff:
                         rune_buff_pos = min(rune_buff, key=lambda p: p[0])
                         target = (
