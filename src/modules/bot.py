@@ -119,9 +119,10 @@ class Bot(Configurable):
         print('\nSolving rune:')
         solution_found = False
         frame = None
+        rune_frame = None
         for i in range(3):
-            frame = config.capture.frame
-            solution = self.prediction_client.predict_from_frame(frame)
+            rune_frame = config.capture.frame
+            solution = self.prediction_client.predict_from_frame(rune_frame)
 
             print(f"Solution {i}: {solution}")
             if solution and len(solution) == 4:
@@ -132,6 +133,7 @@ class Bot(Configurable):
                 time.sleep(1)
                 for _ in range(3):
                     time.sleep(0.3)
+                    frame = config.capture.frame
                     rune_buff = utils.multi_match(frame[:frame.shape[0] // 8, :],
                                                  RUNE_BUFF_TEMPLATE,
                                                  threshold=0.7)
@@ -142,16 +144,18 @@ class Bot(Configurable):
                             round(rune_buff_pos[1] + config.capture.window['top'])
                         )
                         click(target, button='right')
-                        self.rune_active = False
                         attempts = 0
                         solution_found = True
+                self.rune_active = False
                 break
         if not solution_found and frame is not None:
             self._save_failed_detection(frame)
-        attempts += 1
-        if attempts % 3 == 0:
+        if not solution_found and rune_frame is not None:
+            self._save_failed_detection(rune_frame)
             utils.enter_cash_shop()
+            self.rune_active = False
             utils.exit_cash_shop()
+        attempts += 1
         if attempts > 9:
             self.rune_active = False
         if attempts > 20:
