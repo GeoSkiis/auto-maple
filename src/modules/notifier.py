@@ -40,6 +40,18 @@ ESPECIA_TEMPLATE = cv2.imread('assets/especia_template.png', 0)
 # Twentoona Message
 TWENTOONA_TEMPLATE = cv2.imread('assets/twentoona_template.png', 0)
 
+# Skull Death left arrow
+SKULL_DEATH_LEFT_ARROW_TEMPLATE = cv2.imread('assets/skull_death_left_arrow.png', 0)
+
+# Skull Death right arrow
+SKULL_DEATH_RIGHT_ARROW_TEMPLATE = cv2.imread('assets/skull_death_right_arrow.png', 0)
+
+# Skull Death hp bar
+SKULL_DEATH_HP_BAR_TEMPLATE = cv2.imread('assets/skull_death_hp_bar.png', 0)
+
+# Skull Death skull
+SKULL_DEATH_SKULL_TEMPLATE = cv2.imread('assets/skull_death_skull.png', 0)
+
 def get_alert_path(name):
     return os.path.join(Notifier.ALERTS_DIR, f'{name}.mp3')
 
@@ -118,6 +130,19 @@ class Notifier:
                     print("Twentoona Message Detected")
                     print(twentoona)
                     press("esc", 1, down_time=0.1)
+
+                # Check for Skull Death
+                skull_death_left_arrow = utils.multi_match(interrupting_message_frame, SKULL_DEATH_LEFT_ARROW_TEMPLATE, threshold=0.9)
+                skull_death_right_arrow = utils.multi_match(interrupting_message_frame, SKULL_DEATH_RIGHT_ARROW_TEMPLATE, threshold=0.9)
+                skull_death_hp_bar = utils.multi_match(interrupting_message_frame, SKULL_DEATH_HP_BAR_TEMPLATE, threshold=0.9)
+                skull_death_skull = utils.multi_match(interrupting_message_frame, SKULL_DEATH_SKULL_TEMPLATE, threshold=0.9)
+                if len(skull_death_left_arrow) > 0 or len(skull_death_right_arrow) > 0 or len(skull_death_hp_bar) > 0 or len(skull_death_skull) > 0:
+                    print("Skull Death Detected")
+                    print(f"Detection: left arrow {skull_death_left_arrow}, right arrow {skull_death_right_arrow}, hp bar {skull_death_hp_bar}, skull {skull_death_skull}")
+                    for _ in range(20):
+                        press("left", 1, down_time=0.1)
+                        press("right", 1, down_time=0.1)
+                    print("Skull Death Avoided")
 
                 # Check for elite warning
                 elite = utils.multi_match(interrupting_message_frame, ELITE_TEMPLATE, threshold=0.9)
