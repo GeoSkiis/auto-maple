@@ -8,6 +8,7 @@ import pygame
 import threading
 import numpy as np
 import keyboard as kb
+from src.common.vkeys import press
 from src.routine.components import Point
 
 
