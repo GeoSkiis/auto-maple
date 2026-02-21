@@ -45,6 +45,15 @@ def separate_args(arguments):
     return args, kwargs
 
 
+def _frame_to_gray(frame):
+    """Convert frame to grayscale; handle BGR (3ch) or BGRA (4ch, e.g. from mss)."""
+    if frame.ndim == 2:
+        return frame
+    if frame.ndim == 3 and frame.shape[2] == 4:
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGRA2BGR)
+    return cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
+
 def single_match(frame, template):
     """
     Finds the best match within FRAME.
@@ -52,8 +61,7 @@ def single_match(frame, template):
     :param template:    The template to match with.
     :return:            The top-left and bottom-right positions of the best match.
     """
-
-    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    gray = _frame_to_gray(frame)
     result = cv2.matchTemplate(gray, template, cv2.TM_CCOEFF)
     _, _, _, top_left = cv2.minMaxLoc(result)
     w, h = template.shape[::-1]
@@ -72,7 +80,21 @@ def multi_match(frame, template, threshold=0.95):
 
     if template.shape[0] > frame.shape[0] or template.shape[1] > frame.shape[1]:
         return []
-    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    gray = _frame_to_gray(frame)
+    return multi_match_gray(gray, template, threshold)
+
+
+def multi_match_gray(gray, template, threshold=0.95):
+    """
+    Finds all matches in GRAY (grayscale image) that are similar to TEMPLATE by at least THRESHOLD.
+    Use this when you already have a grayscale image to avoid redundant conversions.
+    :param gray:        The grayscale image in which to search (2D array).
+    :param template:    The template to match with (must be grayscale).
+    :param threshold:   The minimum percentage of TEMPLATE that each result must match.
+    :return:            An array of matches that exceed THRESHOLD.
+    """
+    if template.shape[0] > gray.shape[0] or template.shape[1] > gray.shape[1]:
+        return []
     result = cv2.matchTemplate(gray, template, cv2.TM_CCOEFF_NORMED)
     locations = np.where(result >= threshold)
     locations = list(zip(*locations[::-1]))
@@ -84,33 +106,78 @@ def multi_match(frame, template, threshold=0.95):
     return results
 
 
+def multi_match_multiscale(
+    frame,
+    template,
+    threshold=0.95,
+    scales=(0.7, 0.85, 1.0, 1.15, 1.3),
+):
+    """
+    Same as multi_match but tries the template at several scales so the same
+    icon at a different resolution/size still matches (scale-invariant).
+    Picks the scale with the best correlation, then returns all matches at that
+    scale above THRESHOLD.
+    :param frame:     BGR or grayscale image to search in.
+    :param template:  Grayscale template (e.g. from cv2.imread(..., 0)).
+    :param threshold: Minimum correlation to count as a match.
+    :param scales:    Tuple of scale factors to try (1.0 = original size).
+    :return:          List of (x, y) center positions, same format as multi_match.
+    """
+    if frame.ndim == 3:
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    else:
+        gray = frame
+    th, tw = template.shape[:2]
+    best_scale = 1.0
+    best_result = None
+    best_max_val = -1.0
+
+    for s in scales:
+        w = max(1, int(round(tw * s)))
+        h = max(1, int(round(th * s)))
+        if h > gray.shape[0] or w > gray.shape[1]:
+            continue
+        resized = cv2.resize(
+            template, (w, h),
+            interpolation=cv2.INTER_AREA if s < 1 else cv2.INTER_LINEAR,
+        )
+        result = cv2.matchTemplate(gray, resized, cv2.TM_CCOEFF_NORMED)
+        min_val, max_val, _, _ = cv2.minMaxLoc(result)
+        if max_val > best_max_val:
+            best_max_val = max_val
+            best_scale = s
+            best_result = result
+            best_w, best_h = w, h
+
+    if best_result is None:
+        return []
+    locations = np.where(best_result >= threshold)
+    locations = list(zip(*locations[::-1]))
+    results = []
+    for p in locations:
+        x = int(round(p[0] + best_w / 2))
+        y = int(round(p[1] + best_h / 2))
+        results.append((x, y))
+    return results
+
+
 def convert_to_relative(point, frame):
     """
-    Converts POINT into relative coordinates in the range [0, 1] based on FRAME.
-    Normalizes the units of the vertical axis to equal those of the horizontal
-    axis by using config.mm_ratio.
-    :param point:   The point in absolute coordinates.
-    :param frame:   The image to use as a reference.
-    :return:        The given point in relative coordinates.
+    Converts POINT (pixels) into relative coordinates [0, 1] based on FRAME.
+    x and y use the same 0-1 scale (frame width and height).
     """
-
     x = point[0] / frame.shape[1]
-    y = point[1] / config.capture.minimap_ratio / frame.shape[0]
+    y = point[1] / frame.shape[0]
     return x, y
 
 
 def convert_to_absolute(point, frame):
     """
-    Converts POINT into absolute coordinates (in pixels) based on FRAME.
-    Normalizes the units of the vertical axis to equal those of the horizontal
-    axis by using config.mm_ratio.
-    :param point:   The point in relative coordinates.
-    :param frame:   The image to use as a reference.
-    :return:        The given point in absolute coordinates.
+    Converts POINT (0-1 relative) into pixel coordinates based on FRAME.
+    x and y use the same 0-1 scale (frame width and height).
     """
-
     x = int(round(point[0] * frame.shape[1]))
-    y = int(round(point[1] * config.capture.minimap_ratio * frame.shape[0]))
+    y = int(round(point[1] * frame.shape[0]))
     return x, y
 
 

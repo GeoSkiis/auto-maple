@@ -46,14 +46,22 @@ class Listener(Configurable):
 
         self.ready = True
         while True:
-            if self.enabled:
-                if kb.is_pressed(self.config['Start/stop']):
-                    Listener.toggle_enabled()
-                elif kb.is_pressed(self.config['Reload routine']):
-                    Listener.reload_routine()
-                elif self.restricted_pressed('Record position'):
-                    Listener.record_position()
-            time.sleep(0.01)
+            try:
+                if self.enabled:
+                    if kb.is_pressed(self.config['Start/stop']):
+                        Listener.toggle_enabled()
+                    elif kb.is_pressed(self.config['Reload routine']):
+                        Listener.reload_routine()
+                    elif self.restricted_pressed('Record position'):
+                        Listener.record_position()
+                time.sleep(0.01)
+            except OSError as e:
+                # WinError 1450 "Insufficient system resources" can occur when the
+                # system is under heavy memory/handle pressure; log and continue.
+                if getattr(e, 'winerror', None) != 1450:
+                    raise
+                print('\n[!] Listener: system resource hiccup (1450), continuing...')
+                time.sleep(0.5)
 
     def restricted_pressed(self, action):
         """Returns whether the key bound to ACTION is pressed only if the bot is disabled."""
