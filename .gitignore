@@ -4,3 +4,4 @@ assets/models/
 .settings/
 *.iml
 failed_detections/
+.env

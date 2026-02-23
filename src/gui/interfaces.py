@@ -94,10 +94,17 @@ class KeyBindings(LabelFrame):
             self.create_entry(action, key)
         self.focus()
 
-        self.reset = tk.Button(self, text='Reset', command=self.refresh_edit_ui, takefocus=False)
+        self.reset = tk.Button(self, text='Reset', command=self.reset_to_defaults, takefocus=False)
         self.reset.pack(side=tk.LEFT, padx=5, pady=5)
         self.save = tk.Button(self, text='Save', command=self.save_keybindings, takefocus=False)
         self.save.pack(side=tk.RIGHT, padx=5, pady=5)
+
+    def reset_to_defaults(self):
+        """Restore keybindings to command book / config defaults, then refresh the UI."""
+        self.target.config = self.target.DEFAULT_CONFIG.copy()
+        if hasattr(self.target, '_set_keybinds'):
+            self.target._set_keybinds()
+        self.refresh_edit_ui()
 
     def refresh_edit_ui(self):
         self.destroy_contents()

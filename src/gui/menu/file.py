@@ -28,11 +28,17 @@ class File(MenuBarItem):
             command=utils.async_callback(self, File._load_routine),
             state=tk.DISABLED
         )
+        self.add_command(
+            label='Load Minimap',
+            command=utils.async_callback(self, File._load_minimap),
+            state=tk.DISABLED
+        )
 
     def enable_routine_state(self):
         self.entryconfig('New Routine', state=tk.NORMAL)
         self.entryconfig('Save Routine', state=tk.NORMAL)
         self.entryconfig('Load Routine', state=tk.NORMAL)
+        self.entryconfig('Load Minimap', state=tk.NORMAL)
 
     @staticmethod
     @utils.run_if_disabled('\n[!] Cannot create a new routine while Auto Maple is enabled')
@@ -71,6 +77,18 @@ class File(MenuBarItem):
             config.routine.load(file_path)
 
     @staticmethod
+    @utils.run_if_disabled('\n[!] Cannot load minimap while Auto Maple is enabled')
+    def _load_minimap():
+        """Let the user select a minimap PNG from assets/minimaps. When you start (Insert) with auto routine, waypoints will be taken from this map instead of OCR."""
+        file_path = askopenfilename(initialdir=get_minimaps_dir(),
+                                    title='Select a minimap',
+                                    filetypes=[('PNG', '*.png'), ('All', '*')])
+        if file_path:
+            config.selected_minimap_path = file_path
+            print(f"\n[~] Loaded minimap: {file_path}")
+            print("     When you start (Insert) with auto routine, waypoints will be taken from this map (OCR will be skipped).")
+
+    @staticmethod
     @utils.run_if_disabled('\n[!] Cannot load command books while Auto Maple is enabled')
     def _load_commands():
         if config.routine.dirty:
@@ -88,6 +106,15 @@ class File(MenuBarItem):
 
 def get_routines_dir():
     target = os.path.join(config.RESOURCES_DIR, 'routines', config.bot.command_book.name)
+    if not os.path.exists(target):
+        os.makedirs(target)
+    return target
+
+
+def get_minimaps_dir():
+    """Return assets/minimaps in project root; create if missing."""
+    root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+    target = os.path.join(root, 'assets', 'minimaps')
     if not os.path.exists(target):
         os.makedirs(target)
     return target

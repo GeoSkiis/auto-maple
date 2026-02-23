@@ -86,6 +86,9 @@ class Notifier:
         while True:
             if config.enabled:
                 frame = config.capture.frame
+                if frame is None:
+                    time.sleep(0.05)
+                    continue
                 height, width, _ = frame.shape
                 minimap = config.capture.minimap['minimap']
 
@@ -102,41 +105,51 @@ class Notifier:
                     if np.count_nonzero(gray < 15) / height / width > self.room_change_threshold:
                         self._alert('siren')
 
+                # Copy only the region we need for message/skull/elite checks so we can
+                # release the full frame before cv2.matchTemplate (reduces peak memory;
+                # avoids OpenCV "Insufficient memory" when many template matches run).
+                interrupting_message_frame = frame[height // 4:3 * height // 4, :].copy()
+                del frame  # Release full-frame reference before allocating in multi_match
+                del gray
+
+                # Convert to grayscale ONCE and reuse for all template matches to avoid
+                # allocating a new grayscale array for each multi_match call.
+                interrupting_message_gray = cv2.cvtColor(interrupting_message_frame, cv2.COLOR_BGR2GRAY)
+                del interrupting_message_frame  # Release color frame; we only need grayscale now
+
                 # Check for Pollo Message
-                interrupting_message_frame = frame[height // 4:3 * height // 4, :]
-                # cv2.imwrite('interrupting_frame.png', interrupting_message_frame)
-                pollo = utils.multi_match(interrupting_message_frame, POLLO_TEMPLATE, threshold=0.9)
+                pollo = utils.multi_match_gray(interrupting_message_gray, POLLO_TEMPLATE, threshold=0.9)
                 if len(pollo) > 0:
                     print("Pollo Message Detected")
                     print(pollo)
                     press("esc", 1, down_time=0.1)
 
                 # Check for Fritto Message
-                fritto = utils.multi_match(interrupting_message_frame, FRITTO_TEMPLATE, threshold=0.9)
+                fritto = utils.multi_match_gray(interrupting_message_gray, FRITTO_TEMPLATE, threshold=0.9)
                 if len(fritto) > 0:
                     print("Fritto Message Detected")
                     print(fritto)
                     press("esc", 1, down_time=0.1)
 
                 # Check for Especia Message
-                especia = utils.multi_match(interrupting_message_frame, ESPECIA_TEMPLATE, threshold=0.9)
+                especia = utils.multi_match_gray(interrupting_message_gray, ESPECIA_TEMPLATE, threshold=0.9)
                 if len(especia) > 0:
                     print("Especia Message Detected")
                     print(especia)
                     press("esc", 1, down_time=0.1)
 
                 # Check for Twentoona Message
-                twentoona = utils.multi_match(interrupting_message_frame, TWENTOONA_TEMPLATE, threshold=0.9)
+                twentoona = utils.multi_match_gray(interrupting_message_gray, TWENTOONA_TEMPLATE, threshold=0.9)
                 if len(twentoona) > 0:
                     print("Twentoona Message Detected")
                     print(twentoona)
                     press("esc", 1, down_time=0.1)
 
                 # Check for Skull Death
-                skull_death_left_arrow = utils.multi_match(interrupting_message_frame, SKULL_DEATH_LEFT_ARROW_TEMPLATE, threshold=0.9)
-                skull_death_right_arrow = utils.multi_match(interrupting_message_frame, SKULL_DEATH_RIGHT_ARROW_TEMPLATE, threshold=0.9)
-                skull_death_hp_bar = utils.multi_match(interrupting_message_frame, SKULL_DEATH_HP_BAR_TEMPLATE, threshold=0.9)
-                skull_death_skull = utils.multi_match(interrupting_message_frame, SKULL_DEATH_SKULL_TEMPLATE, threshold=0.9)
+                skull_death_left_arrow = utils.multi_match_gray(interrupting_message_gray, SKULL_DEATH_LEFT_ARROW_TEMPLATE, threshold=0.9)
+                skull_death_right_arrow = utils.multi_match_gray(interrupting_message_gray, SKULL_DEATH_RIGHT_ARROW_TEMPLATE, threshold=0.9)
+                skull_death_hp_bar = utils.multi_match_gray(interrupting_message_gray, SKULL_DEATH_HP_BAR_TEMPLATE, threshold=0.9)
+                skull_death_skull = utils.multi_match_gray(interrupting_message_gray, SKULL_DEATH_SKULL_TEMPLATE, threshold=0.9)
                 if len(skull_death_left_arrow) > 0 or len(skull_death_right_arrow) > 0 or len(skull_death_hp_bar) > 0 or len(skull_death_skull) > 0:
                     print("Skull Death Detected")
                     print(f"Detection: left arrow {skull_death_left_arrow}, right arrow {skull_death_right_arrow}, hp bar {skull_death_hp_bar}, skull {skull_death_skull}")
@@ -145,11 +158,23 @@ class Notifier:
                         press("right", 1, down_time=0.1)
                     print("Skull Death Avoided")
 
-                # Check for elite warning
-                elite = utils.multi_match(interrupting_message_frame, ELITE_TEMPLATE, threshold=0.9)
+                # Check for elite warning: wait 7s, use Origin, wait 5s, use Ascent (6th job; not in skill rotation)
+                elite = utils.multi_match_gray(interrupting_message_gray, ELITE_TEMPLATE, threshold=0.9)
                 if len(elite) > 0:
-                    print("Elite Boss Detected")
-                #     self._alert('siren')
+                    print("Elite Boss Detected - using Origin then Ascent.")
+                    module = getattr(config.bot.command_book, 'module', None) if getattr(config.bot, 'command_book', None) else None
+                    if module and hasattr(module, 'Key'):
+                        Key = module.Key
+                        if getattr(Key, 'ORIGIN', None) and getattr(Key, 'ASCENT', None):
+                            time.sleep(7)
+                            press(Key.ORIGIN, 3)
+                            time.sleep(5)
+                            press(Key.ASCENT, 3)
+                            print("Origin and Ascent used.")
+                        else:
+                            print("Command book has no ORIGIN/ASCENT keys.")
+                    else:
+                        print("No command book loaded for Origin/Ascent.")
 
                 # Check for other players entering the map
                 filtered = utils.filter_color(minimap, OTHER_RANGES)

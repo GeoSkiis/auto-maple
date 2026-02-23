@@ -7,7 +7,7 @@ import time
 import git
 import cv2
 from PIL import Image
-from src.common import config, utils
+from src.common import config, settings, utils
 from src.detection.detection import ArrowPredictionClient, crop_to_640x640
 from src.routine import components
 from src.routine.routine import Routine
@@ -72,7 +72,18 @@ class Bot(Configurable):
         self.ready = True
         config.listener.enabled = True
         last_fed = time.time()
+        last_exp_buff = time.time()
+        last_drop_buff = time.time()
+        last_fam_buff = time.time()
         while True:
+            # Auto routine: resolve waypoints from minimap match once we have a live minimap
+            if config.enabled and self.command_book is not None and getattr(config.routine, 'auto_mode', False) and len(config.routine) == 0:
+                config.routine.resolve_auto_routine(
+                    skill_rotation_duration=getattr(settings, 'skill_rotation_duration', 5.0),
+                    move_tolerance=getattr(settings, 'move_tolerance', 0.075),
+                )
+                time.sleep(0.5)
+                continue
             if config.enabled and len(config.routine) > 0 and self.command_book is not None:
                 # Buff and feed pets
                 self.command_book.buff.main()
@@ -83,6 +94,15 @@ class Bot(Configurable):
                 if auto_feed and now - last_fed > 1200 / num_pets:
                     press(self.config['Feed pet'], 1)
                     last_fed = now
+                if now - last_exp_buff > 1800:
+                    press("b", 1)
+                    last_exp_buff = now
+                if now - last_drop_buff > 1800:
+                    press("d", 1)
+                    last_drop_buff = now
+                if now - last_fam_buff > 3600:
+                    press("f", 1)
+                    last_fam_buff = now
 
                 # Highlight the current Point
                 config.gui.view.routine.select(config.routine.index)

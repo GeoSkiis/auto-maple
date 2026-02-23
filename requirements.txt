@@ -8,3 +8,4 @@ Pillow
 pygame
 pywin32
 python-dotenv
+pytesseract

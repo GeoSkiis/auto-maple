@@ -18,11 +18,11 @@ INPUT_HARDWARE = 2
 KEYEVENTF_EXTENDEDKEY = 0x0001
 KEYEVENTF_KEYUP = 0x0002
 KEYEVENTF_UNICODE = 0x0004
-KEYEVENTF_SCANCODE = 0x0008
 
 MAPVK_VK_TO_VSC = 0
 
 # https://docs.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes?redirectedfrom=MSDN
+# Do not add 'alt' to KEY_MAP: it does not register in MapleStory when sent via SendInput.
 KEY_MAP = {
     'left': 0x25,   # Arrow keys
     'up': 0x26,
@@ -34,7 +34,6 @@ KEY_MAP = {
     'enter': 0x0D,
     'shift': 0x10,
     'ctrl': 0x11,
-    'alt': 0x12,
     'caps lock': 0x14,
     'esc': 0x1B,
     'space': 0x20,

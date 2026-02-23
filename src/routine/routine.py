@@ -2,10 +2,32 @@
 
 from src.common import config, settings, utils
 import csv
+import json
+import os
+import re
 from os.path import splitext, basename
-from src.routine.components import Point, Label, Jump, Setting, Command, SYMBOLS
+from src.routine.components import Point, Label, Jump, Setting, Command, SYMBOLS, SkillRotation
 from src.routine.layout import Layout
 import random
+
+
+def _save_failed_frame(frame, failed_dir, reason=""):
+    """Save frame to failed_detections/failed_minimap_finder_{n}.jpg for inspection (BGR so test script matches)."""
+    try:
+        import cv2
+        os.makedirs(failed_dir, exist_ok=True)
+        # Save as BGR so when loaded with cv2.imread it matches live matching (mss gives BGRA)
+        save_frame = frame
+        if frame.ndim == 3 and frame.shape[2] == 4:
+            save_frame = cv2.cvtColor(frame, cv2.COLOR_BGRA2BGR)
+        existing = [f for f in os.listdir(failed_dir) if re.match(r"failed_minimap_finder_\d+\.jpg", f)]
+        nums = [int(re.search(r"\d+", f).group()) for f in existing]
+        n = max(nums, default=0) + 1
+        path = os.path.join(failed_dir, f"failed_minimap_finder_{n}.jpg")
+        cv2.imwrite(path, save_frame)
+        print(f"[~] Saved frame for inspection ({reason}): {path}")
+    except Exception as e:
+        print(f"[!] Could not save failed frame: {e}")
 
 
 def update(func):
@@ -42,6 +64,7 @@ class Routine:
         self.index = 0
         self.sequence = []
         self.display = []       # Updated alongside sequence
+        self.auto_mode = False  # True when loaded auto.csv: resolve waypoints at run from minimap match
 
     @dirty
     @update
@@ -185,6 +208,7 @@ class Routine:
         self.set([])
         self.dirty = False
         self.path = ''
+        self.auto_mode = False
         config.layout = None
         settings.reset()
 
@@ -215,6 +239,9 @@ class Routine:
             return False
 
         self.clear()
+        # Reset so a CSV without the setting doesn't inherit previous routine's mode
+        settings.skill_rotation_mode = False
+        settings.skill_rotation_duration = 5.0
 
         # Compile and Link
         self.compile(file)
@@ -224,6 +251,10 @@ class Routine:
 
         self.dirty = False
         self.path = file
+        # auto.csv with nothing (or only $ settings): resolve waypoints when bot runs via minimap match
+        if basename(file).lower() == 'auto.csv':
+            self.auto_mode = True
+            print(' ~  Auto routine: waypoints will be resolved from minimap match when you start.')
         config.layout = Layout.load(file)
         config.gui.view.status.set_routine(basename(file))
         config.gui.edit.minimap.draw_default()
@@ -249,7 +280,9 @@ class Routine:
 
     def _eval(self, row, i):
         if row and isinstance(row, list):
-            first, rest = row[0].lower(), row[1:]
+            first, rest = row[0].strip().lower(), row[1:]
+            if not first:
+                return
             args, kwargs = utils.separate_args(rest)
             line_error = f' !  Line {i}: '
 
@@ -270,6 +303,97 @@ class Routine:
             except (ValueError, TypeError) as e:
                 print(line_error + f"Found invalid arguments for '{c.__name__}':")
                 print(f"{' ' * 4} -  {e}")
+
+    def resolve_auto_routine(self, skill_rotation_duration=5.0, move_tolerance=0.075):
+        """
+        Resolve auto routine: if a minimap was selected via File > Load Minimap, use it and skip OCR.
+        Otherwise match current game minimap to a PNG in assets/minimaps (OCR), then build waypoints.
+        If no asset matches, use the live minimap from config.capture. Sets sequence to Points with
+        SkillRotation at each; enables skill_rotation_mode. Call when bot is enabled and auto_mode is True.
+        """
+        from src.map.waypoints_from_map import (
+            find_matching_map,
+            waypoints_from_map_path,
+            waypoints_from_map_image,
+        )
+        root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        failed_dir = os.path.join(root, 'failed_detections')
+        map_path = None
+        waypoints = None
+
+        # User selected a minimap (File > Load Minimap): use it directly, no OCR
+        selected = getattr(config, 'selected_minimap_path', None)
+        if selected and os.path.isfile(selected):
+            map_path = selected
+            waypoints = waypoints_from_map_path(map_path)
+            print('\n[~] Auto routine: using selected minimap (OCR skipped).')
+        else:
+            # No selection: use frame + OCR to match a map, or live minimap
+            frame = config.capture.frame if config.capture else None
+            minimap = config.capture.get_minimap_from_frame(frame) if config.capture and frame is not None else None
+            if minimap is None:
+                print('\n[!] Auto routine: no minimap available yet (capture not ready).')
+                if frame is not None:
+                    _save_failed_frame(frame, failed_dir, "minimap_extract")
+                return False
+            minimaps_dir = os.path.join(root, 'assets', 'minimaps')
+            map_path = find_matching_map(frame, minimaps_dir, threshold=0.7)
+            if map_path:
+                waypoints = waypoints_from_map_path(map_path)
+            else:
+                print('\n[~] Auto routine: no minimap found in assets/minimaps; using current game minimap for waypoints.')
+                if frame is not None:
+                    _save_failed_frame(frame, failed_dir, "minimap_match")
+                waypoints = waypoints_from_map_image(minimap)
+        if not waypoints:
+            print('\n[!] Auto routine: no waypoints (no platforms detected on minimap).')
+            return False
+        sequence = []
+        for w in waypoints:
+            p = Point(
+                x=w['x'], y=w['y'],
+                frequency=1, skip='False', adjust='True'
+            )
+            p.commands = [SkillRotation(duration=skill_rotation_duration)]
+            sequence.append(p)
+        self.sequence = sequence
+        self.display = [str(x) for x in sequence]
+        self.labels = {}
+        self.index = 0
+        self.auto_mode = False
+        settings.skill_rotation_mode = True
+        settings.skill_rotation_duration = skill_rotation_duration
+        settings.move_tolerance = move_tolerance
+        config.gui.set_routine(self.display)
+        config.gui.view.details.update_details()
+        utils.print_separator()
+        source = os.path.basename(map_path) if map_path else "current minimap"
+        print(f"[~] Auto routine resolved: {source}, {len(sequence)} waypoints, skill rotation {skill_rotation_duration}s.")
+        return True
+
+    @dirty
+    @update
+    def load_waypoints_from_json(self, path, skill_rotation_duration=5):
+        """
+        Load waypoints from a JSON file (e.g. from mark_platform_centers.py output).
+        Each waypoint becomes a Point with SkillRotation(duration=...) as its only command.
+        Call after a command book is loaded (so move/adjust exist).
+        """
+        with open(path, 'r') as f:
+            waypoints = json.load(f)
+        sequence = []
+        for w in waypoints:
+            p = Point(
+                x=w['x'], y=w['y'],
+                frequency=1, skip='False', adjust='True'
+            )
+            p.commands = [SkillRotation(duration=skill_rotation_duration)]
+            sequence.append(p)
+        self.sequence = sequence
+        self.display = [str(x) for x in sequence]
+        self.labels = {}
+        self.index = 0
+        self.path = path
 
     @staticmethod
     def get_all_components():

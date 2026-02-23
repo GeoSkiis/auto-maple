@@ -22,6 +22,9 @@ stage_fright = False
 # Represents the current shortest path that the bot is taking
 path = []
 
+# User-selected minimap path (File > Load Minimap). When set, auto routine uses this instead of OCR.
+selected_minimap_path = None
+
 
 #############################
 #       Shared Modules      #

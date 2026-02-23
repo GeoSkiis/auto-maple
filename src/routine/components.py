@@ -1,6 +1,7 @@
 """A collection of classes used to execute a Routine."""
 
 import math
+import random
 import time
 from src.common import config, settings, utils
 from src.common.vkeys import key_down, key_up, press
@@ -83,8 +84,11 @@ class Point(Component):
             if self.adjust:
                 adjust = config.bot.command_book['adjust']      # TODO: adjust using step('up')?
                 adjust(*self.location).execute()
-            for command in self.commands:
-                command.execute()
+            if settings.skill_rotation_mode:
+                SkillRotation(duration=settings.skill_rotation_duration).execute()
+            else:
+                for command in self.commands:
+                    command.execute()
         self._increment_counter()
 
     @utils.run_if_enabled
@@ -226,6 +230,35 @@ class Command(Component):
         return result
 
 
+def _try_skill_during_move():
+    """
+    If the current command book has SKILL_COOLDOWNS, use one random off-cooldown skill.
+    Uses the same CooldownTracker as SkillRotation so cooldowns stay in sync.
+    """
+    from src.routine.cooldown_tracker import CooldownTracker
+    module = getattr(config.bot.command_book, 'module', None) if getattr(config.bot, 'command_book', None) else None
+    cooldowns = getattr(module, 'SKILL_COOLDOWNS', None) if module else None
+    if cooldowns is None:
+        return
+    tracker = getattr(config.bot, 'cooldown_tracker', None)
+    if tracker is None or getattr(tracker, '_cooldowns_ref', None) is not cooldowns:
+        tracker = CooldownTracker(cooldowns)
+        tracker._cooldowns_ref = cooldowns
+        setattr(config.bot, 'cooldown_tracker', tracker)
+    skill_keys = [k for k, cd in cooldowns.items() if cd > 0]
+    available = [k for k in tracker.get_available() if k in skill_keys]
+    if not available:
+        return
+    key = random.choice(available)
+    press_count = 1
+    if module is not None:
+        skill_press_counts = getattr(module, 'SKILL_PRESS_COUNTS', None) or {}
+        press_count = skill_press_counts.get(key, 1)
+    press(key, press_count, down_time=0.05, up_time=0.05)
+    tracker.record_used(key)
+    time.sleep(0.05)
+
+
 class Move(Command):
     """Moves to a given position using the shortest path based on the current Layout."""
 
@@ -260,10 +293,19 @@ class Move(Command):
                         else:
                             key = 'right'
                         self._new_direction(key)
+                        # Occasional jump during horizontal movement to avoid getting stuck on ladders
+                        if random.random() < 0.3:
+                            jump_key = getattr(
+                                getattr(getattr(config.bot, 'command_book', None), 'module', None), 'Key', None
+                            )
+                            jump_key = getattr(jump_key, 'JUMP', 'space') if jump_key else 'space'
+                            press(jump_key, 1, down_time=0.05, up_time=0.05)
+                            time.sleep(utils.rand_float(0.05, 0.12))
                         step(key, point)
                         if settings.record_layout:
                             config.layout.add(*config.player_pos)
                         counter -= 1
+                        _try_skill_during_move()
                         if i < len(path) - 1:
                             time.sleep(0.15)
                 else:
@@ -278,6 +320,7 @@ class Move(Command):
                         if settings.record_layout:
                             config.layout.add(*config.player_pos)
                         counter -= 1
+                        _try_skill_during_move()
                         if i < len(path) - 1:
                             time.sleep(0.05)
                 local_error = utils.distance(config.player_pos, point)
@@ -358,6 +401,84 @@ class Fall(Command):
             counter -= 1
         key_up('down')
         time.sleep(0.05)
+
+
+# Standard keys for skill rotation: main attack and jump (same for all classes)
+SKILL_ROTATION_MAIN_ATTACK_KEY = 'ctrl'
+SKILL_ROTATION_JUMP_KEY = 'space'
+
+
+class SkillRotation(Command):
+    """
+    Alternate between main-attack phase and skill phase for a duration.
+    - Main attack: hold ctrl + left or right for 1–3 sec (attack while moving).
+    - Skill phase: use one random skill that is off cooldown; if all on CD,
+      keep attacking with direction until one is ready.
+    Jump = space, main attack = ctrl. Cooldowns tracked per skill (timestamp + cd).
+    """
+    id = 'SkillRotation'
+
+    def __init__(self, duration=5):
+        super().__init__(locals())
+        self.duration = float(duration)
+
+    def _main_attack_phase(self, main_key: str, max_sec: float = 5.0) -> None:
+        """Hold main attack (ctrl) + a direction (left/right) to attack while moving for 1–3 sec."""
+        if max_sec <= 0.05:
+            return
+        if max_sec >= 1.0:
+            duration = utils.rand_float(1.0, min(3.0, max_sec))
+        elif max_sec > 0.2:
+            duration = utils.rand_float(0.2, max_sec)
+        else:
+            duration = utils.rand_float(0.05, max_sec)
+        direction = random.choice(('left', 'right'))
+        key_down(direction)
+        key_down(main_key)
+        end_hold = time.time() + duration
+        while config.enabled and time.time() < end_hold:
+            time.sleep(0.05)
+        key_up(main_key)
+        key_up(direction)
+        time.sleep(0.03)
+
+    def main(self):
+        from src.routine.cooldown_tracker import CooldownTracker
+        module = getattr(config.bot.command_book, 'module', None) if getattr(config.bot, 'command_book', None) else None
+        cooldowns = getattr(module, 'SKILL_COOLDOWNS', None) if module else None
+        if cooldowns is None:
+            cooldowns = {}
+        tracker = getattr(config.bot, 'cooldown_tracker', None)
+        if tracker is None or getattr(tracker, '_cooldowns_ref', None) is not cooldowns:
+            tracker = CooldownTracker(cooldowns)
+            tracker._cooldowns_ref = cooldowns
+            setattr(config.bot, 'cooldown_tracker', tracker)
+        # Only consider keys that have an actual cooldown (exclude main attack / spam keys)
+        skill_keys = [k for k, cd in cooldowns.items() if cd > 0]
+        main_key = SKILL_ROTATION_MAIN_ATTACK_KEY
+        end = time.time() + self.duration
+        while config.enabled and time.time() < end:
+            # Main attack phase: up to 5 seconds
+            remaining = end - time.time()
+            self._main_attack_phase(main_key, max_sec=min(5.0, max(0.2, remaining)))
+            if not config.enabled or time.time() >= end:
+                break
+            # Skill phase: pick one off-cooldown skill, or main attack until one is ready
+            available = [k for k in tracker.get_available() if k in skill_keys]
+            while config.enabled and time.time() < end and not available:
+                self._main_attack_phase(main_key, max_sec=0.3)
+                available = [k for k in tracker.get_available() if k in skill_keys]
+            if not config.enabled or time.time() >= end:
+                break
+            if available:
+                key = random.choice(available)
+                press_count = 1
+                if module is not None:
+                    skill_press_counts = getattr(module, 'SKILL_PRESS_COUNTS', None) or {}
+                    press_count = skill_press_counts.get(key, 1)
+                press(key, press_count, down_time=0.05, up_time=0.05)
+                tracker.record_used(key)
+            time.sleep(0.05)
 
 
 class Buff(Command):

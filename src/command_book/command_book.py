@@ -74,6 +74,8 @@ class CommandBook(Configurable):
         for name, command in inspect.getmembers(module, inspect.isclass):
             if issubclass(command, components.Command):
                 new_cb[name.lower()] = command
+        # Always add skill-based rotation (cooldown-driven random skill use)
+        new_cb['skillrotation'] = components.SkillRotation
 
         # Check if required commands have been implemented and overridden
         required_found = True
