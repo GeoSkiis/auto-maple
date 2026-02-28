@@ -1,10 +1,11 @@
 """User friendly GUI to interact with Auto Maple."""
 
+import os
 import time
 import threading
 import tkinter as tk
 from tkinter import ttk
-from src.common import config, settings
+from src.common import config, settings, session
 from src.gui import Menu, View, Edit, Settings
 
 
@@ -42,6 +43,31 @@ class GUI:
         self.navigation.pack(expand=True, fill='both')
         self.navigation.bind('<<NotebookTabChanged>>', self._resize_window)
         self.root.focus()
+
+        # Restore previous session after a short delay (so window is shown)
+        self.root.after(100, self._restore_session)
+
+    def _restore_session(self):
+        """Load command book, routine, and minimap from last session."""
+        data = session.load()
+        if not data:
+            return
+        cb_path = data.get('command_book', '')
+        routine_path = data.get('routine', '')
+        minimap_path = data.get('minimap', '')
+        if cb_path and os.path.isfile(cb_path):
+            try:
+                config.bot.load_commands(cb_path)
+            except Exception:
+                pass
+        if routine_path and os.path.isfile(routine_path) and config.bot.command_book is not None:
+            try:
+                config.routine.load(routine_path)
+            except Exception:
+                pass
+        if minimap_path and os.path.isfile(minimap_path):
+            config.selected_minimap_path = minimap_path
+            config.gui.view.status.set_minimap(os.path.basename(minimap_path))
 
     def set_routine(self, arr):
         self.routine_var.set(arr)

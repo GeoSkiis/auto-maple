@@ -1,6 +1,7 @@
 import os
 import tkinter as tk
 from src.common import config, utils
+from src.common import session
 from src.gui.interfaces import MenuBarItem
 from tkinter.filedialog import askopenfilename, asksaveasfilename
 from tkinter.messagebox import askyesno
@@ -75,6 +76,7 @@ class File(MenuBarItem):
                                     filetypes=[('*.csv', '*.csv')])
         if file_path:
             config.routine.load(file_path)
+            session.save(routine_path=file_path)
 
     @staticmethod
     @utils.run_if_disabled('\n[!] Cannot load minimap while Auto Maple is enabled')
@@ -85,6 +87,8 @@ class File(MenuBarItem):
                                     filetypes=[('PNG', '*.png'), ('All', '*')])
         if file_path:
             config.selected_minimap_path = file_path
+            session.save(minimap_path=file_path)
+            config.gui.view.status.set_minimap(os.path.basename(file_path))
             print(f"\n[~] Loaded minimap: {file_path}")
             print("     When you start (Insert) with auto routine, waypoints will be taken from this map (OCR will be skipped).")
 
@@ -102,6 +106,8 @@ class File(MenuBarItem):
                                     filetypes=[('*.py', '*.py')])
         if file_path:
             config.bot.load_commands(file_path)
+            if config.bot.command_book is not None:
+                session.save(command_book_path=file_path)
 
 
 def get_routines_dir():

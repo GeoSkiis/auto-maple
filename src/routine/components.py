@@ -245,17 +245,18 @@ def _try_skill_during_move():
         tracker = CooldownTracker(cooldowns)
         tracker._cooldowns_ref = cooldowns
         setattr(config.bot, 'cooldown_tracker', tracker)
-    skill_keys = [k for k, cd in cooldowns.items() if cd > 0]
-    available = [k for k in tracker.get_available() if k in skill_keys]
+    skill_ids = [k for k, cd in cooldowns.items() if cd > 0]
+    available = [k for k in tracker.get_available() if k in skill_ids]
     if not available:
         return
-    key = random.choice(available)
+    skill_id = random.choice(available)
     press_count = 1
     if module is not None:
         skill_press_counts = getattr(module, 'SKILL_PRESS_COUNTS', None) or {}
-        press_count = skill_press_counts.get(key, 1)
-    press(key, press_count, down_time=0.05, up_time=0.05)
-    tracker.record_used(key)
+        press_count = skill_press_counts.get(skill_id, 1)
+    actual_key = _resolve_key(module, skill_id)
+    press(actual_key, press_count, down_time=0.05, up_time=0.05)
+    tracker.record_used(skill_id)
     time.sleep(0.05)
 
 
@@ -315,7 +316,13 @@ class Move(Command):
                             key = 'up'
                         else:
                             key = 'down'
-                        self._new_direction(key)
+                        # Never hold 'up' - step uses rope lift only, no up+jump
+                        if key == 'up':
+                            if self.prev_direction:
+                                key_up(self.prev_direction)
+                                self.prev_direction = ''
+                        else:
+                            self._new_direction(key)
                         step(key, point)
                         if settings.record_layout:
                             config.layout.add(*config.player_pos)
@@ -403,18 +410,27 @@ class Fall(Command):
         time.sleep(0.05)
 
 
-# Standard keys for skill rotation: main attack and jump (same for all classes)
+# Standard keys for skill rotation (fallback when Key lookup fails)
 SKILL_ROTATION_MAIN_ATTACK_KEY = 'ctrl'
 SKILL_ROTATION_JUMP_KEY = 'space'
+
+
+def _resolve_key(module, skill_id: str) -> str:
+    """Resolve skill ID to physical key. Supports rebinds via Key class.
+    If skill_id is a Key attribute (e.g. STRIKE), returns Key.STRIKE (user's binding).
+    Otherwise returns skill_id as literal key (backwards compat for key-based cooldowns)."""
+    if module is None or not hasattr(module, 'Key'):
+        return skill_id
+    return getattr(module.Key, skill_id, skill_id)
 
 
 class SkillRotation(Command):
     """
     Alternate between main-attack phase and skill phase for a duration.
-    - Main attack: hold ctrl + left or right for 1–3 sec (attack while moving).
+    - Main attack: hold main attack key + left or right for 1–3 sec (attack while moving).
     - Skill phase: use one random skill that is off cooldown; if all on CD,
       keep attacking with direction until one is ready.
-    Jump = space, main attack = ctrl. Cooldowns tracked per skill (timestamp + cd).
+    Uses Key class for key lookup so user rebinds are respected.
     """
     id = 'SkillRotation'
 
@@ -423,7 +439,7 @@ class SkillRotation(Command):
         self.duration = float(duration)
 
     def _main_attack_phase(self, main_key: str, max_sec: float = 5.0) -> None:
-        """Hold main attack (ctrl) + a direction (left/right) to attack while moving for 1–3 sec."""
+        """Hold main attack key + a direction (left/right) to attack while moving for 1–3 sec."""
         if max_sec <= 0.05:
             return
         if max_sec >= 1.0:
@@ -453,31 +469,32 @@ class SkillRotation(Command):
             tracker = CooldownTracker(cooldowns)
             tracker._cooldowns_ref = cooldowns
             setattr(config.bot, 'cooldown_tracker', tracker)
-        # Only consider keys that have an actual cooldown (exclude main attack / spam keys)
-        skill_keys = [k for k, cd in cooldowns.items() if cd > 0]
-        main_key = SKILL_ROTATION_MAIN_ATTACK_KEY
+        # Main attack = first skill with 0 cd (or fallback)
+        main_attack_id = next((k for k, cd in cooldowns.items() if cd == 0), None)
+        main_key = _resolve_key(module, main_attack_id) if main_attack_id else SKILL_ROTATION_MAIN_ATTACK_KEY
+        # Skills with cd > 0 for rotation
+        skill_ids = [k for k, cd in cooldowns.items() if cd > 0]
         end = time.time() + self.duration
         while config.enabled and time.time() < end:
-            # Main attack phase: up to 5 seconds
             remaining = end - time.time()
             self._main_attack_phase(main_key, max_sec=min(5.0, max(0.2, remaining)))
             if not config.enabled or time.time() >= end:
                 break
-            # Skill phase: pick one off-cooldown skill, or main attack until one is ready
-            available = [k for k in tracker.get_available() if k in skill_keys]
+            available = [k for k in tracker.get_available() if k in skill_ids]
             while config.enabled and time.time() < end and not available:
                 self._main_attack_phase(main_key, max_sec=0.3)
-                available = [k for k in tracker.get_available() if k in skill_keys]
+                available = [k for k in tracker.get_available() if k in skill_ids]
             if not config.enabled or time.time() >= end:
                 break
             if available:
-                key = random.choice(available)
+                skill_id = random.choice(available)
                 press_count = 1
                 if module is not None:
                     skill_press_counts = getattr(module, 'SKILL_PRESS_COUNTS', None) or {}
-                    press_count = skill_press_counts.get(key, 1)
-                press(key, press_count, down_time=0.05, up_time=0.05)
-                tracker.record_used(key)
+                    press_count = skill_press_counts.get(skill_id, 1)
+                actual_key = _resolve_key(module, skill_id)
+                press(actual_key, press_count, down_time=0.05, up_time=0.05)
+                tracker.record_used(skill_id)
             time.sleep(0.05)
 
 

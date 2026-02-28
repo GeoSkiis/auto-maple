@@ -180,6 +180,10 @@ Auto Maple has the ability to automatically solve "runes", or in-game arrow key 
     <pre><code>winget install -e --id Python.Python.3.12</code></pre>
   </li>
   <li>
+    (Optional) Install <a href="https://github.com/UB-Mannheim/tesseract/wiki">Tesseract OCR</a> for automatic map detection when using the auto routine. Without it, the bot can still run using the live minimap or a manually selected map.
+    <pre><code>winget install -e UB-Mannheim.TesseractOCR</code></pre>
+  </li>
+  <li>
     Download and unzip the latest <a href="https://github.com/GeoSkiis/auto-maple/releases">Auto Maple release</a>.
     <pre><code>git clone https://github.com/GeoSkiis/auto-maple</code></pre>
   </li>
@@ -197,3 +201,7 @@ Auto Maple has the ability to automatically solve "runes", or in-game arrow key 
     This shortcut uses absolute paths, so feel free to move it wherever you want. However, if you move Auto Maple's main directory, you will need to run <code>python setup.py</code> again to generate a new shortcut. To keep the command prompt open after Auto Maple closes, run the above command with the <code>--stay</code> flag.
   </li>
 </ol>
+
+<p>
+  Your command book, routine (including the auto routine), and minimap selection are saved automatically. When you close and reopen Auto Maple, your previous selections will already be loaded—no need to pick them again.
+</p>

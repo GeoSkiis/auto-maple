@@ -29,7 +29,12 @@ class Bot(Configurable):
 
     DEFAULT_CONFIG = {
         'Interact': 'y',
-        'Feed pet': '9'
+        'Feed pet': '9',
+        'Item buff 1': 'b',
+        'Item buff 2': 'n',
+        'Item buff 3': 'm',
+        'Item buff 4': ',',
+        'Familiar pot': '.',
     }
 
     def __init__(self):
@@ -72,9 +77,9 @@ class Bot(Configurable):
         self.ready = True
         config.listener.enabled = True
         last_fed = time.time()
-        last_exp_buff = time.time()
-        last_drop_buff = time.time()
-        last_fam_buff = time.time()
+        # Item buffs 1-4: activate immediately (last_used=0). Familiar: wait full interval.
+        last_item_buff = {1: 0.0, 2: 0.0, 3: 0.0, 4: 0.0}
+        last_familiar_buff = time.time()
         while True:
             # Auto routine: resolve waypoints from minimap match once we have a live minimap
             if config.enabled and self.command_book is not None and getattr(config.routine, 'auto_mode', False) and len(config.routine) == 0:
@@ -94,15 +99,20 @@ class Bot(Configurable):
                 if auto_feed and now - last_fed > 1200 / num_pets:
                     press(self.config['Feed pet'], 1)
                     last_fed = now
-                if now - last_exp_buff > 1800:
-                    press("b", 1)
-                    last_exp_buff = now
-                if now - last_drop_buff > 1800:
-                    press("d", 1)
-                    last_drop_buff = now
-                if now - last_fam_buff > 3600:
-                    press("f", 1)
-                    last_fam_buff = now
+                ib = getattr(getattr(getattr(config, 'gui', None), 'settings', None), 'item_buffs', None)
+                ib = ib.settings if ib else None
+                if ib:
+                    for i in range(1, 5):
+                        interval = ib.get(f'Item buff {i}')
+                        if interval > 0 and (last_item_buff[i] == 0 or now - last_item_buff[i] >= interval):
+                            press(self.config[f'Item buff {i}'], 1)
+                            time.sleep(2)
+                            last_item_buff[i] = now
+                    fam_interval = ib.get('Familiar pot')
+                    if fam_interval > 0 and now - last_familiar_buff >= fam_interval:
+                        press(self.config['Familiar pot'], 1)
+                        time.sleep(2)
+                        last_familiar_buff = now
 
                 # Highlight the current Point
                 config.gui.view.routine.select(config.routine.index)
