@@ -53,6 +53,9 @@ SKULL_DEATH_HP_BAR_TEMPLATE = cv2.imread('assets/skull_death_hp_bar.png', 0)
 # Skull Death skull
 SKULL_DEATH_SKULL_TEMPLATE = cv2.imread('assets/skull_death_skull.png', 0)
 
+# Lie detector
+LIE_DETECTOR_TEMPLATE = cv2.imread('assets/lie_detector.png', 0)
+
 def get_alert_path(name):
     return os.path.join(Notifier.ALERTS_DIR, f'{name}.mp3')
 
@@ -144,6 +147,14 @@ class Notifier:
                     print("Twentoona Message Detected")
                     print(twentoona)
                     press("esc", 1, down_time=0.1)
+
+                # Check for Lie Detector
+                if LIE_DETECTOR_TEMPLATE is not None:
+                    lie_detector = utils.multi_match_gray(interrupting_message_gray, LIE_DETECTOR_TEMPLATE, threshold=0.9)
+                    if len(lie_detector) > 0:
+                        print("Lie Detector detected")
+                        os.system('taskkill /f /im "MapleStory.exe"')
+                        os.system(f'taskkill /f /pid {os.getpid()}')
 
                 # Check for Skull Death
                 skull_death_left_arrow = utils.multi_match_gray(interrupting_message_gray, SKULL_DEATH_LEFT_ARROW_TEMPLATE, threshold=0.9)
