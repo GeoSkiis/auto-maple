@@ -13,7 +13,7 @@ class GUI:
     # Lower rate (10) reduces Tkinter canvas/itemconfig image leak over long runs (was 30)
     DISPLAY_FRAME_RATE = 10
     RESOLUTIONS = {
-        'DEFAULT': '800x800',
+        'DEFAULT': '700x800',
         'Edit': '1400x800'
     }
 

@@ -13,6 +13,8 @@ class Settings(Tab):
         super().__init__(parent, 'Settings', **kwargs)
 
         self.columnconfigure(0, weight=1)
+        self.columnconfigure(1, weight=1)
+        self.columnconfigure(2, weight=1)
         self.columnconfigure(3, weight=1)
 
         self.column1 = Frame(self)

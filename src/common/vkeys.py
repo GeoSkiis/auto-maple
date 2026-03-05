@@ -185,6 +185,16 @@ def key_down(key):
     if key not in KEY_MAP.keys():
         print(f"Invalid keyboard input: '{key}'.")
     else:
+        # 检查是否需要打印按键信息
+        import src.common.config as config
+        print_press_msg = False
+        if hasattr(config.bot, 'command_book') and hasattr(config.bot.command_book, 'module'):
+            module = config.bot.command_book.module
+            print_press_msg = getattr(module, 'PRINT_PRESS_MSG', False)
+        
+        if print_press_msg:
+            print(f"Key down: '{key}'")
+        
         x = Input(type=INPUT_KEYBOARD, ki=KeyboardInput(wVk=KEY_MAP[key]))
         user32.SendInput(1, ctypes.byref(x), ctypes.sizeof(x))
 
@@ -201,6 +211,16 @@ def key_up(key):
     if key not in KEY_MAP.keys():
         print(f"Invalid keyboard input: '{key}'.")
     else:
+        # 检查是否需要打印按键信息
+        import src.common.config as config
+        print_press_msg = False
+        if hasattr(config.bot, 'command_book') and hasattr(config.bot.command_book, 'module'):
+            module = config.bot.command_book.module
+            print_press_msg = getattr(module, 'PRINT_PRESS_MSG', False)
+        
+        if print_press_msg:
+            print(f"Key up: '{key}'")
+        
         x = Input(type=INPUT_KEYBOARD, ki=KeyboardInput(wVk=KEY_MAP[key], dwFlags=KEYEVENTF_KEYUP))
         user32.SendInput(1, ctypes.byref(x), ctypes.sizeof(x))
 

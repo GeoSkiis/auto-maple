@@ -17,7 +17,7 @@ player_pos = (0, 0)
 enabled = False
 
 # If there is another player in the map, Auto Maple will purposely make random human-like mistakes
-stage_fright = False
+stage_fright = True
 
 # Represents the current shortest path that the bot is taking
 path = []

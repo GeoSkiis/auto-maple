@@ -79,80 +79,109 @@ class Capture:
 
         mss.windows.CAPTUREBLT = 0
         while True:
-            # Calibrate screen capture
-            handle = user32.FindWindowW(None, 'MapleStory')
-            rect = wintypes.RECT()
-            user32.GetWindowRect(handle, ctypes.pointer(rect))
-            rect = (rect.left, rect.top, rect.right, rect.bottom)
-            rect = tuple(max(0, x) for x in rect)
+            try:
+                # Calibrate screen capture
+                handle = user32.FindWindowW(None, 'MapleStory')
+                if not handle:
+                    print('[!] MapleStory window not found, waiting...')
+                    time.sleep(5)
+                    continue
+                
+                rect = wintypes.RECT()
+                user32.GetWindowRect(handle, ctypes.pointer(rect))
+                rect = (rect.left, rect.top, rect.right, rect.bottom)
+                rect = tuple(max(0, x) for x in rect)
 
-            self.window['left'] = rect[0]
-            self.window['top'] = rect[1]
-            self.window['width'] = max(rect[2] - rect[0], MMT_WIDTH)
-            self.window['height'] = max(rect[3] - rect[1], MMT_HEIGHT)
+                self.window['left'] = rect[0]
+                self.window['top'] = rect[1]
+                self.window['width'] = max(rect[2] - rect[0], MMT_WIDTH)
+                self.window['height'] = max(rect[3] - rect[1], MMT_HEIGHT)
 
-            # Calibrate by finding the top-left and bottom-right corners of the minimap
-            with mss.mss() as self.sct:
-                self.frame = self.screenshot()
-            if self.frame is None:
-                continue
-            # Search only in the top-left 30% of the frame (minimap is always there)
-            h_frame, w_frame = self.frame.shape[:2]
-            temp_frame = self.frame[0 : int(h_frame * 0.3), 0 : int(w_frame * 0.3)]
-            tl, _ = utils.single_match(temp_frame, MM_TL_TEMPLATE)
-            _, br = utils.single_match(temp_frame, MM_BR_TEMPLATE)
-            mm_tl = (
-                tl[0] + MINIMAP_BOTTOM_BORDER,
-                tl[1] + MINIMAP_TOP_BORDER
-            )
-            mm_br = (
-                max(mm_tl[0] + PT_WIDTH, br[0] - MINIMAP_BOTTOM_BORDER),
-                max(mm_tl[1] + PT_HEIGHT, br[1] - MINIMAP_BOTTOM_BORDER)
-            )
-            self.minimap_ratio = (mm_br[0] - mm_tl[0]) / (mm_br[1] - mm_tl[1])
-            self.minimap_sample = self.frame[mm_tl[1]:mm_br[1], mm_tl[0]:mm_br[0]]
-            self.calibrated = True
-
-            with mss.mss() as self.sct:
-                while True:
-                    if not self.calibrated:
-                        break
-
-                    # Take screenshot
-                    self.frame = self.screenshot()
+                # Calibrate by finding the top-left and bottom-right corners of the minimap
+                try:
+                    with mss.mss() as self.sct:
+                        self.frame = self.screenshot()
                     if self.frame is None:
                         continue
+                    # Search only in the top-left 30% of the frame (minimap is always there)
+                    h_frame, w_frame = self.frame.shape[:2]
+                    temp_frame = self.frame[0 : int(h_frame * 0.3), 0 : int(w_frame * 0.3)]
+                    tl, _ = utils.single_match(temp_frame, MM_TL_TEMPLATE)
+                    _, br = utils.single_match(temp_frame, MM_BR_TEMPLATE)
+                    mm_tl = (
+                        tl[0] + MINIMAP_BOTTOM_BORDER,
+                        tl[1] + MINIMAP_TOP_BORDER
+                    )
+                    mm_br = (
+                        max(mm_tl[0] + PT_WIDTH, br[0] - MINIMAP_BOTTOM_BORDER),
+                        max(mm_tl[1] + PT_HEIGHT, br[1] - MINIMAP_BOTTOM_BORDER)
+                    )
+                    self.minimap_ratio = (mm_br[0] - mm_tl[0]) / (mm_br[1] - mm_tl[1])
+                    self.minimap_sample = self.frame[mm_tl[1]:mm_br[1], mm_tl[0]:mm_br[0]]
+                    self.calibrated = True
+                    print('[~] Minimap calibrated successfully')
+                except Exception as e:
+                    print(f'[!] Error during calibration: {e}')
+                    time.sleep(2)
+                    continue
 
-                    # Crop the frame to only show the minimap (copy so GUI thread
-                    # does not hold a reference to the full frame and cause memory pressure).
-                    minimap = self.frame[mm_tl[1]:mm_br[1], mm_tl[0]:mm_br[0]].copy()
+                with mss.mss() as self.sct:
+                    while True:
+                        if not self.calibrated:
+                            break
 
-                    # Determine the player's position
-                    player = utils.multi_match(minimap, PLAYER_TEMPLATE, threshold=0.8)
-                    if player:
-                        config.player_pos = utils.convert_to_relative(player[0], minimap)
+                        try:
+                            # Take screenshot
+                            self.frame = self.screenshot()
+                            if self.frame is None:
+                                continue
 
-                    # Package display information to be polled by GUI
-                    self.minimap = {
-                        'minimap': minimap,
-                        'rune_active': config.bot.rune_active,
-                        'rune_pos': config.bot.rune_pos,
-                        'path': config.path,
-                        'player_pos': config.player_pos
-                    }
+                            # Crop the frame to only show the minimap (copy so GUI thread
+                            # does not hold a reference to the full frame and cause memory pressure).
+                            minimap = self.frame[mm_tl[1]:mm_br[1], mm_tl[0]:mm_br[0]].copy()
 
-                    if not self.ready:
-                        self.ready = True
-                    
-                    # Periodic garbage collection every ~100 frames (~1.6s at 60fps) to help
-                    # free memory when system is under pressure (reduces "unable to alloc" errors).
-                    self._gc_counter += 1
-                    if self._gc_counter >= 100:
-                        gc.collect()
-                        self._gc_counter = 0
-                    
-                    # ~60 fps to reduce mss allocation pressure (grab allocates internally).
-                    time.sleep(0.016)
+                            # Determine the player's position
+                            player = utils.multi_match(minimap, PLAYER_TEMPLATE, threshold=0.8)
+                            if player:
+                                config.player_pos = utils.convert_to_relative(player[0], minimap)
+                            else:
+                                # If player not found, keep last position but don't update
+                                pass
+
+                            # Package display information to be polled by GUI
+                            self.minimap = {
+                                'minimap': minimap,
+                                'rune_active': config.bot.rune_active,
+                                'rune_pos': config.bot.rune_pos,
+                                'path': config.path,
+                                'player_pos': config.player_pos
+                            }
+
+                            if not self.ready:
+                                self.ready = True
+                            
+                            # Periodic garbage collection every ~100 frames (~1.6s at 60fps) to help
+                            # free memory when system is under pressure (reduces "unable to alloc" errors).
+                            self._gc_counter += 1
+                            if self._gc_counter >= 100:
+                                gc.collect()
+                                self._gc_counter = 0
+                            
+                            # ~60 fps to reduce mss allocation pressure (grab allocates internally).
+                            time.sleep(0.016)
+                        except Exception as e:
+                            print(f'[!] Error in capture loop: {e}')
+                            # Pause and try to recover
+                            time.sleep(1)
+                            # Try to recalibrate if needed
+                            if not self.calibrated:
+                                break
+            except Exception as e:
+                print(f'[!] Critical error in capture main loop: {e}')
+                import traceback
+                traceback.print_exc()
+                # Pause to allow recovery
+                time.sleep(5)
 
     def get_minimap_from_frame(self, frame):
         """

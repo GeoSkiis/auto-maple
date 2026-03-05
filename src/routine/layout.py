@@ -65,6 +65,7 @@ class Layout:
     """Uses a quadtree to represent possible player positions in a map layout."""
 
     TOLERANCE = settings.move_tolerance / 2
+    # TOLERANCE = 0.017
 
     def __init__(self, name):
         """
@@ -81,7 +82,7 @@ class Layout:
         Adds a Node to the quadtree at position (X, Y) if it does not already exist.
         :param x:   The x-position of the new point.
         :param y:   The y-position of the new point.
-        :return:    None
+        :return:    True if the point was added successfully, False otherwise.
         """
 
         def add_helper(node):
@@ -106,6 +107,10 @@ class Layout:
                                                   y + Layout.TOLERANCE))
         if all(checks):
             self.root = add_helper(self.root)
+            # 打印记录的点坐标
+            print(f"记录路径点({x:.4f}, {y:.4f})")
+            return True
+        return False
 
     def search(self, x_min, x_max, y_min, y_max):
         """
@@ -290,6 +295,76 @@ class Layout:
         with open(join(layouts_dir, self.name), 'wb') as file:
             pickle.dump(self, file)
 
+    def delete_nearest(self, x, y):
+        """
+        Deletes the nearest layout point to the given coordinates (X, Y).
+        :param x:   The x-coordinate to search from.
+        :param y:   The y-coordinate to search from.
+        :return:    True if a point was deleted, False otherwise.
+        """
+
+        # Search for nearby points
+        nodes = self.search(x - 0.1, x + 0.1, y - 0.1, y + 0.1)
+
+        if not nodes:
+            return False
+
+        # Find the nearest node
+        nearest_node = None
+        min_distance = float('inf')
+
+        for node in nodes:
+            distance = utils.distance((node.x, node.y), (x, y))
+            if distance < min_distance:
+                min_distance = distance
+                nearest_node = node
+
+        if not nearest_node:
+            return False
+
+        # Delete the node from the quadtree
+        self.root = self._delete_node(self.root, nearest_node.x, nearest_node.y)
+        return True
+
+    def _delete_node(self, node, x, y):
+        """
+        Recursively deletes a node from the quadtree.
+        :param node:    The current node being checked.
+        :param x:       The x-coordinate of the node to delete.
+        :param y:       The y-coordinate of the node to delete.
+        :return:        The updated node after deletion.
+        """
+        if not node:
+            return None
+
+        # Find the node to delete
+        if node.x == x and node.y == y:
+            # Handle leaf node
+            if not any([node.up_left, node.up_right, node.down_left, node.down_right]):
+                return None
+            # Handle non-leaf node (simplified: return the first non-empty child)
+            if node.up_left:
+                return node.up_left
+            elif node.up_right:
+                return node.up_right
+            elif node.down_left:
+                return node.down_left
+            elif node.down_right:
+                return node.down_right
+
+        # Recursively search child nodes
+        if y >= node.y and x < node.x:
+            node.up_left = self._delete_node(node.up_left, x, y)
+        elif y >= node.y and x >= node.x:
+            node.up_right = self._delete_node(node.up_right, x, y)
+        elif y < node.y and x < node.x:
+            node.down_left = self._delete_node(node.down_left, x, y)
+        else:
+            node.down_right = self._delete_node(node.down_right, x, y)
+
+        return node
+
 
 def get_layouts_dir():
+    # 使用相对路径
     return os.path.join(config.RESOURCES_DIR, 'layouts', config.bot.command_book.name)

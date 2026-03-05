@@ -73,7 +73,6 @@ class Notifier:
         self.thread = threading.Thread(target=self._main)
         self.thread.daemon = True
 
-        self.room_change_threshold = 0.9
         self.rune_alert_delay = 270         # 4.5 minutes
 
     def start(self):
@@ -95,25 +94,13 @@ class Notifier:
                 height, width, _ = frame.shape
                 minimap = config.capture.minimap['minimap']
 
-                # Check for unexpected black screen
-                gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-                if np.count_nonzero(gray < 15) / height / width > self.room_change_threshold:
-                    time.sleep(40)
-                    frame = config.capture.frame
-                    height, width, _ = frame.shape
-                    minimap = config.capture.minimap['minimap']
 
-                    # Check for unexpected black screen
-                    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-                    if np.count_nonzero(gray < 15) / height / width > self.room_change_threshold:
-                        self._alert('siren')
 
                 # Copy only the region we need for message/skull/elite checks so we can
                 # release the full frame before cv2.matchTemplate (reduces peak memory;
                 # avoids OpenCV "Insufficient memory" when many template matches run).
                 interrupting_message_frame = frame[height // 4:3 * height // 4, :].copy()
                 del frame  # Release full-frame reference before allocating in multi_match
-                del gray
 
                 # Convert to grayscale ONCE and reuse for all template matches to avoid
                 # allocating a new grayscale array for each multi_match call.

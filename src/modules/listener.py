@@ -13,7 +13,9 @@ class Listener(Configurable):
     DEFAULT_CONFIG = {
         'Start/stop': 'insert',
         'Reload routine': 'f6',
-        'Record position': 'f7'
+        'Record position': 'f7',
+        'Add layout point': 'f9',
+        'Delete nearest layout point': 'f10'
     }
     BLOCK_DELAY = 1         # Delay after blocking restricted button press
 
@@ -48,20 +50,37 @@ class Listener(Configurable):
         while True:
             try:
                 if self.enabled:
-                    if kb.is_pressed(self.config['Start/stop']):
-                        Listener.toggle_enabled()
-                    elif kb.is_pressed(self.config['Reload routine']):
-                        Listener.reload_routine()
-                    elif self.restricted_pressed('Record position'):
-                        Listener.record_position()
+                    try:
+                        if kb.is_pressed(self.config['Start/stop']):
+                            Listener.toggle_enabled()
+                        elif kb.is_pressed(self.config['Reload routine']):
+                            Listener.reload_routine()
+                        elif self.restricted_pressed('Record position'):
+                            Listener.record_position()
+                        elif kb.is_pressed(self.config['Add layout point']):
+                            Listener.add_layout_point()
+                        elif kb.is_pressed(self.config['Delete nearest layout point']):
+                            Listener.delete_nearest_layout_point()
+                    except Exception as e:
+                        print(f'[!] Error in keyboard input handling: {e}')
+                        # Pause to avoid rapid error looping
+                        time.sleep(0.1)
                 time.sleep(0.01)
             except OSError as e:
                 # WinError 1450 "Insufficient system resources" can occur when the
                 # system is under heavy memory/handle pressure; log and continue.
                 if getattr(e, 'winerror', None) != 1450:
-                    raise
+                    print(f'[!] Critical OS error in listener: {e}')
+                    time.sleep(1)
+                    continue
                 print('\n[!] Listener: system resource hiccup (1450), continuing...')
                 time.sleep(0.5)
+            except Exception as e:
+                print(f'[!] Critical error in listener main loop: {e}')
+                import traceback
+                traceback.print_exc()
+                # Pause to allow recovery
+                time.sleep(1)
 
     def restricted_pressed(self, action):
         """Returns whether the key bound to ACTION is pressed only if the bot is disabled."""
@@ -117,3 +136,41 @@ class Listener(Configurable):
         config.gui.edit.record.add_entry(now, pos)
         print(f'\n[~] Recorded position ({pos[0]}, {pos[1]}) at {now}')
         time.sleep(0.6)
+
+    @staticmethod
+    def add_layout_point():
+        if config.layout is None:
+            print('\n[!] No layout loaded. Please load a routine first.')
+            winsound.Beep(523, 200)     # C5
+            winsound.Beep(392, 200)     # G4
+            time.sleep(0.1)
+            return
+        x, y = config.player_pos
+        success = config.layout.add(x, y)
+        if success:
+            config.layout.save()
+            print(f'\n[~] Added layout point ({x:.3f}, {y:.3f})')
+            winsound.Beep(659, 200)     # E5
+            winsound.Beep(784, 200)     # G5
+        else:
+            print(f'\n[!] Point ({x:.3f}, {y:.3f}) already exists or is too close to an existing point.')
+        time.sleep(0.1)
+
+    @staticmethod
+    def delete_nearest_layout_point():
+        if config.layout is None:
+            print('\n[!] No layout loaded. Please load a routine first.')
+            winsound.Beep(523, 200)     # C5
+            winsound.Beep(392, 200)     # G4
+            time.sleep(0.1)
+            return
+        x, y = config.player_pos
+        success = config.layout.delete_nearest(x, y)
+        if success:
+            config.layout.save()
+            print(f'\n[~] Deleted nearest layout point to ({x:.3f}, {y:.3f})')
+            winsound.Beep(784, 200)     # G5
+            winsound.Beep(659, 200)     # E5
+        else:
+            print(f'\n[!] No layout points found near ({x:.3f}, {y:.3f}).')
+        time.sleep(0.1)

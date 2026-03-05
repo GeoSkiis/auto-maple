@@ -289,26 +289,31 @@ class Async(threading.Thread):
         return f
 
 
-def enter_cash_shop(repeat: int = 10):
+def enter_cash_shop(repeat: int = 7):
     """
     Send F5 + Enter repeatedly to open the cash shop.
     :param repeat: Number of F5+Enter cycles (default 10).
     """
     for _ in range(repeat):
-        press("f5", 1, down_time=0.1)
-        press("enter", 1, down_time=0.1)
-        time.sleep(1)
+        press("f5", 3, down_time=0.2, up_time=0.2)
+        print("已发送 F5")
+        time.sleep(2)
 
 
 def exit_cash_shop():
     """Send Esc/Enter sequence to leave the cash shop and wait for loading."""
-    time.sleep(5)
-    press("esc", 1, down_time=0.1)
+    print("开始退出商城...")
+    time.sleep(55)
+    print("已发送 Esc")
+    press("esc", 1, down_time=0.2)
     time.sleep(1)
-    press("esc", 1, down_time=0.1)
+    print("已发送 Esc")
+    press("esc", 1, down_time=0.2)
     time.sleep(1)
-    press("enter", 1, down_time=0.1)
-    time.sleep(5)
+    print("已发送 Enter")
+    press("enter", 1, down_time=0.2)
+    time.sleep(7)
+    print("退出商城完成")
 
 
 def async_callback(context, function, *args, **kwargs):

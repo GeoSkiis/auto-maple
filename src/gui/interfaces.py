@@ -70,7 +70,7 @@ class KeyBindings(LabelFrame):
 
         if len(self.target.config) > 27:
             self.long = True
-            self.container = Frame(self, width=354, height=650)
+            self.container = Frame(self, height=650)
             self.container.pack(side=tk.TOP, fill=tk.BOTH, expand=True, padx=(5, 0))
             self.container.pack_propagate(False)
             self.canvas = tk.Canvas(self.container, bd=0, highlightthickness=0)
@@ -82,8 +82,13 @@ class KeyBindings(LabelFrame):
                 '<Configure>',
                 lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all"))
             )
-            self.canvas.create_window((0, 0), window=self.contents, anchor=tk.NW)
+            self.canvas.create_window((0, 0), window=self.contents, anchor=tk.NW, width=self.container.winfo_width())
             self.canvas.configure(yscrollcommand=self.scrollbar.set)
+            
+            # Bind configure event to update canvas width when container resizes
+            def on_configure(event):
+                self.canvas.itemconfig(1, width=event.width - self.scrollbar.winfo_width())
+            self.container.bind('<Configure>', on_configure)
         else:
             self.contents = Frame(self)
             self.contents.pack(side=tk.TOP, fill=tk.BOTH, expand=True, padx=5, pady=5)
