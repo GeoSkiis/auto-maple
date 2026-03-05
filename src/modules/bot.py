@@ -135,9 +135,9 @@ class Bot(Configurable):
                                 # Player has moved, update last position and time
                                 self.last_position = current_pos
                                 self.position_time = now
-                            elif now - self.position_time > 10:
-                                # Player hasn't moved for 10 seconds, perform jump
-                                print('[~] Player hasn\'t moved for 10 seconds, performing jump')
+                            elif now - self.position_time > 5:
+                                # Player hasn't moved for 5 seconds, perform jump
+                                print('[~] Player hasn\'t moved for 5 seconds, performing jump')
                                 # Randomly choose left or right direction
                                 direction = random.choice(['left', 'right'])
                                 # Press direction key and jump
