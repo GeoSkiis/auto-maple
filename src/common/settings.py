@@ -89,7 +89,7 @@ def reset():
     global move_tolerance, adjust_tolerance, record_layout, buff_cooldown
     global skill_rotation_mode, skill_rotation_duration
     move_tolerance = 0.07
-    adjust_tolerance = 0.04
+    adjust_tolerance = 0.02
     record_layout = False
     buff_cooldown = 180
     skill_rotation_mode = False
