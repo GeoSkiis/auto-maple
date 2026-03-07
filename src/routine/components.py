@@ -270,6 +270,11 @@ class Move(Command):
         self.prev_direction = ''
 
     def _new_direction(self, new):
+        # Never hold 'up' during movement (rope lift only); release if stuck
+        if new == 'up':
+            key_up('up')
+            self.prev_direction = ''
+            return
         key_down(new)
         if self.prev_direction and self.prev_direction != new:
             key_up(self.prev_direction)
@@ -313,17 +318,16 @@ class Move(Command):
                     d_y = point[1] - config.player_pos[1]
                     if abs(d_y) > settings.move_tolerance / math.sqrt(2):
                         if d_y < 0:
-                            key = 'up'
-                        else:
-                            key = 'down'
-                        # Never hold 'up' - step uses rope lift only, no up+jump
-                        if key == 'up':
+                            # Go up: rope lift only (step('up') uses rope lift in command book, no up key)
                             if self.prev_direction:
                                 key_up(self.prev_direction)
                                 self.prev_direction = ''
+                            key_up('up')
+                            step('up', point)
                         else:
+                            key = 'down'
                             self._new_direction(key)
-                        step(key, point)
+                            step(key, point)
                         if settings.record_layout:
                             config.layout.add(*config.player_pos)
                         counter -= 1
