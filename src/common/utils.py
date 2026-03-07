@@ -1,4 +1,4 @@
-"""A collection of functions and classes used across multiple modules."""
+"""多个模块共用的函数和类的集合。"""
 
 import math
 import queue
@@ -14,10 +14,10 @@ from random import random
 
 def distance(a, b):
     """
-    Applies the distance formula to two points.
-    :param a:   The first point.
-    :param b:   The second point.
-    :return:    The distance between the two points.
+    应用距离公式计算两点之间的距离。
+    :param a:   第一个点。
+    :param b:   第二个点。
+    :return:    两点之间的距离。
     """
 
     return math.sqrt((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2)
@@ -25,10 +25,9 @@ def distance(a, b):
 
 def separate_args(arguments):
     """
-    Separates a given array ARGUMENTS into an array of normal arguments and a
-    dictionary of keyword arguments.
-    :param arguments:    The array of arguments to separate.
-    :return:             An array of normal arguments and a dictionary of keyword arguments.
+    将给定的数组 ARGUMENTS 分离为普通参数数组和关键字参数字典。
+    :param arguments:    要分离的参数数组。
+    :return:             普通参数数组和关键字参数字典。
     """
 
     args = []
@@ -46,7 +45,7 @@ def separate_args(arguments):
 
 
 def _frame_to_gray(frame):
-    """Convert frame to grayscale; handle BGR (3ch) or BGRA (4ch, e.g. from mss)."""
+    """将帧转换为灰度；处理 BGR（3通道）或 BGRA（4通道，例如来自 mss）。"""
     if frame.ndim == 2:
         return frame
     if frame.ndim == 3 and frame.shape[2] == 4:
@@ -56,10 +55,10 @@ def _frame_to_gray(frame):
 
 def single_match(frame, template):
     """
-    Finds the best match within FRAME.
-    :param frame:       The image in which to search for TEMPLATE.
-    :param template:    The template to match with.
-    :return:            The top-left and bottom-right positions of the best match.
+    在 FRAME 中找到最佳匹配。
+    :param frame:       要在其中搜索 TEMPLATE 的图像。
+    :param template:    要匹配的模板。
+    :return:            最佳匹配的左上角和右下角位置。
     """
     gray = _frame_to_gray(frame)
     result = cv2.matchTemplate(gray, template, cv2.TM_CCOEFF)
@@ -71,11 +70,11 @@ def single_match(frame, template):
 
 def multi_match(frame, template, threshold=0.95):
     """
-    Finds all matches in FRAME that are similar to TEMPLATE by at least THRESHOLD.
-    :param frame:       The image in which to search.
-    :param template:    The template to match with.
-    :param threshold:   The minimum percentage of TEMPLATE that each result must match.
-    :return:            An array of matches that exceed THRESHOLD.
+    在 FRAME 中找到所有与 TEMPLATE 相似度至少为 THRESHOLD 的匹配项。
+    :param frame:       要搜索的图像。
+    :param template:    要匹配的模板。
+    :param threshold:   每个结果必须匹配 TEMPLATE 的最小百分比。
+    :return:            超过 THRESHOLD 的匹配项数组。
     """
 
     if template.shape[0] > frame.shape[0] or template.shape[1] > frame.shape[1]:
@@ -86,12 +85,12 @@ def multi_match(frame, template, threshold=0.95):
 
 def multi_match_gray(gray, template, threshold=0.95):
     """
-    Finds all matches in GRAY (grayscale image) that are similar to TEMPLATE by at least THRESHOLD.
-    Use this when you already have a grayscale image to avoid redundant conversions.
-    :param gray:        The grayscale image in which to search (2D array).
-    :param template:    The template to match with (must be grayscale).
-    :param threshold:   The minimum percentage of TEMPLATE that each result must match.
-    :return:            An array of matches that exceed THRESHOLD.
+    在 GRAY（灰度图像）中找到所有与 TEMPLATE 相似度至少为 THRESHOLD 的匹配项。
+    当您已经有灰度图像时使用此方法，以避免冗余转换。
+    :param gray:        要搜索的灰度图像（2D 数组）。
+    :param template:    要匹配的模板（必须是灰度）。
+    :param threshold:   每个结果必须匹配 TEMPLATE 的最小百分比。
+    :return:            超过 THRESHOLD 的匹配项数组。
     """
     if template.shape[0] > gray.shape[0] or template.shape[1] > gray.shape[1]:
         return []
@@ -113,15 +112,13 @@ def multi_match_multiscale(
     scales=(0.7, 0.85, 1.0, 1.15, 1.3),
 ):
     """
-    Same as multi_match but tries the template at several scales so the same
-    icon at a different resolution/size still matches (scale-invariant).
-    Picks the scale with the best correlation, then returns all matches at that
-    scale above THRESHOLD.
-    :param frame:     BGR or grayscale image to search in.
-    :param template:  Grayscale template (e.g. from cv2.imread(..., 0)).
-    :param threshold: Minimum correlation to count as a match.
-    :param scales:    Tuple of scale factors to try (1.0 = original size).
-    :return:          List of (x, y) center positions, same format as multi_match.
+    与 multi_match 相同，但会尝试多个尺度的模板，以便不同分辨率/大小的相同图标仍然可以匹配（尺度不变）。
+    选择相关性最好的尺度，然后返回该尺度上所有超过 THRESHOLD 的匹配项。
+    :param frame:     要搜索的 BGR 或灰度图像。
+    :param template:  灰度模板（例如从 cv2.imread(..., 0) 获得）。
+    :param threshold: 视为匹配的最小相关性。
+    :param scales:    要尝试的尺度因子元组（1.0 = 原始大小）。
+    :return:          (x, y) 中心位置列表，格式与 multi_match 相同。
     """
     if frame.ndim == 3:
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
@@ -163,8 +160,8 @@ def multi_match_multiscale(
 
 def convert_to_relative(point, frame):
     """
-    Converts POINT (pixels) into relative coordinates [0, 1] based on FRAME.
-    x and y use the same 0-1 scale (frame width and height).
+    将 POINT（像素）转换为基于 FRAME 的相对坐标 [0, 1]。
+    x 和 y 使用相同的 0-1 尺度（帧宽度和高度）。
     """
     x = point[0] / frame.shape[1]
     y = point[1] / frame.shape[0]
@@ -173,8 +170,8 @@ def convert_to_relative(point, frame):
 
 def convert_to_absolute(point, frame):
     """
-    Converts POINT (0-1 relative) into pixel coordinates based on FRAME.
-    x and y use the same 0-1 scale (frame width and height).
+    将 POINT（0-1 相对）转换为基于 FRAME 的像素坐标。
+    x 和 y 使用相同的 0-1 尺度（帧宽度和高度）。
     """
     x = int(round(point[0] * frame.shape[1]))
     y = int(round(point[1] * frame.shape[0]))
@@ -183,11 +180,10 @@ def convert_to_absolute(point, frame):
 
 def filter_color(img, ranges):
     """
-    Returns a filtered copy of IMG that only contains pixels within the given RANGES.
-    on the HSV scale.
-    :param img:     The image to filter.
-    :param ranges:  A list of tuples, each of which is a pair upper and lower HSV bounds.
-    :return:        A filtered copy of IMG.
+    返回 IMG 的过滤副本，仅包含 HSV 尺度上给定 RANGES 内的像素。
+    :param img:     要过滤的图像。
+    :param ranges:  元组列表，每个元组是一对 HSV 上下边界。
+    :return:        IMG 的过滤副本。
     """
 
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
@@ -195,7 +191,7 @@ def filter_color(img, ranges):
     for i in range(1, len(ranges)):
         mask = cv2.bitwise_or(mask, cv2.inRange(hsv, ranges[i][0], ranges[i][1]))
 
-    # Mask the image
+    # 遮罩图像
     color_mask = mask > 0
     result = np.zeros_like(img, np.uint8)
     result[color_mask] = img[color_mask]
@@ -204,11 +200,10 @@ def filter_color(img, ranges):
 
 def draw_location(minimap, pos, color):
     """
-    Draws a visual representation of POINT onto MINIMAP. The radius of the circle represents
-    the allowed error when moving towards POINT.
-    :param minimap:     The image on which to draw.
-    :param pos:         The location (as a tuple) to depict.
-    :param color:       The color of the circle.
+    在 MINIMAP 上绘制 POINT 的视觉表示。圆的半径表示向 POINT 移动时的允许误差。
+    :param minimap:     要在其上绘制的图像。
+    :param pos:         要描绘的位置（作为元组）。
+    :param color:       圆的颜色。
     :return:            None
     """
 
@@ -221,26 +216,26 @@ def draw_location(minimap, pos, color):
 
 
 def print_separator():
-    """Prints a 3 blank lines for visual clarity."""
+    """打印 3 个空行以提高视觉清晰度。"""
 
     print('\n\n')
 
 
 def print_state():
-    """Prints whether Auto Maple is currently enabled or disabled."""
+    """打印 Auto Maple 当前是启用还是禁用。"""
 
     print_separator()
     print('#' * 18)
-    print(f"#    {'ENABLED ' if config.enabled else 'DISABLED'}    #")
+    print(f"#    {'已启用 ' if config.enabled else '已禁用'}    #")
     print('#' * 18)
 
 
 def closest_point(points, target):
     """
-    Returns the point in POINTS that is closest to TARGET.
-    :param points:      A list of points to check.
-    :param target:      The point to check against.
-    :return:            The point closest to TARGET, otherwise None if POINTS is empty.
+    返回 POINTS 中最接近 TARGET 的点。
+    :param points:      要检查的点列表。
+    :param target:      要检查的目标点。
+    :return:            最接近 TARGET 的点，如果 POINTS 为空则返回 None。
     """
 
     if points:
@@ -250,23 +245,23 @@ def closest_point(points, target):
 
 def bernoulli(p):
     """
-    Returns the value of a Bernoulli random variable with probability P.
-    :param p:   The random variable's probability of being True.
-    :return:    True or False.
+    返回概率为 P 的伯努利随机变量的值。
+    :param p:   随机变量为 True 的概率。
+    :return:    True 或 False。
     """
 
     return random() < p
 
 
 def rand_float(start, end):
-    """Returns a random float value in the interval [START, END)."""
+    """返回区间 [START, END) 中的随机浮点值。"""
 
-    assert start < end, 'START must be less than END'
+    assert start < end, 'START 必须小于 END'
     return (end - start) * random() + start
 
 
 ##########################
-#       Threading        #
+#       线程处理        #
 ##########################
 class Async(threading.Thread):
     def __init__(self, function, *args, **kwargs):
@@ -291,7 +286,7 @@ class Async(threading.Thread):
 
 def enter_cash_shop():
     """
-    Send F5 repeatedly until the cash shop image is detected.
+    重复发送 F5 直到检测到商城图像。
     """
     import cv2
     from src.modules.capture import Capture
@@ -332,7 +327,7 @@ def enter_cash_shop():
 
 
 def exit_cash_shop():
-    """Send Esc/Enter sequence to leave the cash shop and wait for loading."""
+    """发送 Esc/Enter 序列离开商城并等待加载。"""
     print("开始退出商城...")
     time.sleep(1)
     print("已发送 Esc")
@@ -348,7 +343,7 @@ def exit_cash_shop():
 
 
 def async_callback(context, function, *args, **kwargs):
-    """Returns a callback function that can be run asynchronously by the GUI."""
+    """返回可以由 GUI 异步运行的回调函数。"""
 
     def f():
         task = Async(function, *args, **kwargs)

@@ -1,4 +1,4 @@
-"""An interpreter that reads and executes user-created routines."""
+"""一个读取并执行用户创建的例程的解释器。"""
 
 import os
 import re
@@ -18,15 +18,15 @@ from src.common.vkeys import press, click, key_down, key_up
 from src.common.interfaces import Configurable
 
 
-# The rune's buff icon
+# 符文的 buff 图标
 RUNE_BUFF_TEMPLATE = cv2.imread('assets/rune_buff_template.jpg', 0)
 
-# Folder for saving frames when rune detection fails (project root)
+# 符文检测失败时保存帧的文件夹（项目根目录）
 FAILED_DETECTIONS_FOLDER = "failed_detections"
 attempts = 0
 
 class Bot(Configurable):
-    """A class that interprets and executes user-defined routines."""
+    """一个解释和执行用户定义例程的类。"""
 
     DEFAULT_CONFIG = {
         'Interact': 'y',
@@ -39,16 +39,16 @@ class Bot(Configurable):
     }
 
     def __init__(self):
-        """Loads a user-defined routine on start up and initializes this Bot's main thread."""
+        """在启动时加载用户定义的例程并初始化此 Bot 的主线程。"""
 
         super().__init__('keybindings')
         config.bot = self
 
         self.rune_active = False
         self.rune_pos = (0, 0)
-        self.rune_closest_pos = (0, 0)      # Location of the Point closest to rune
+        self.rune_closest_pos = (0, 0)      # 最接近符文的点的位置
         self.submodules = []
-        self.command_book = None            # CommandBook instance
+        self.command_book = None            # CommandBook 实例
         self.prediction_client = ArrowPredictionClient()
 
         config.routine = Routine()
@@ -57,18 +57,18 @@ class Bot(Configurable):
         self.thread = threading.Thread(target=self._main)
         self.thread.daemon = True
         
-        # Position monitoring variables
+        # 位置监控变量
         self.last_position = (0, 0)
         self.position_time = time.time()
 
     def start(self):
         """
-        Starts this Bot object's thread.
+        启动此 Bot 对象的线程。
         :return:    None
         """
 
         self.update_submodules()
-        print('\n[~] Started main bot loop')
+        print('\n[~] 启动主 bot 循环')
         self.thread.start()
 
     def _main(self):
@@ -101,43 +101,46 @@ class Bot(Configurable):
                 
                 # 当Bot启用且例程不为空且命令书已加载时
                 if config.enabled and len(config.routine) > 0 and self.command_book is not None:
+                    now = time.time()  # 当前时间
+                    
                     # 增益buff和喂食宠物
                     try:
-                        self.command_book.buff.main()  # 执行命令书中的buff方法
-                        pet_settings = config.gui.settings.pets  # 获取宠物设置
-                        auto_feed = pet_settings.auto_feed.get()  # 获取是否自动喂食
-                        num_pets = pet_settings.num_pets.get()  # 获取宠物数量
-                        now = time.time()  # 当前时间
-                        
-                        # 自动喂食宠物
-                        if auto_feed and now - last_fed > 1200 / num_pets:
-                            press(self.config['Feed pet'], 1)  # 按下喂食宠物的按键
-                            last_fed = now  # 更新上次喂食时间
-                        
-                        # 处理物品buff
-                        ib = getattr(getattr(getattr(config, 'gui', None), 'settings', None), 'item_buffs', None)
-                        ib = ib.settings if ib else None
-                        if ib:
-                            # 处理1-4号物品buff
-                            for i in range(1, 5):
-                                interval = ib.get(f'Item buff {i}')  # 获取buff间隔
-                                # 如果间隔大于0且（首次使用或已超过间隔时间）
-                                if interval > 0 and (last_item_buff[i] == 0 or now - last_item_buff[i] >= interval):
-                                    press(self.config[f'Item buff {i}'], 1)  # 按下物品buff按键
-                                    time.sleep(2)  # 等待2秒
-                                    last_item_buff[i] = now  # 更新上次使用时间
+                        # 减少buff执行频率，每2帧执行一次
+                        if gc_counter % 2 == 0:
+                            self.command_book.buff.main()  # 执行命令书中的buff方法
+                            pet_settings = config.gui.settings.pets  # 获取宠物设置
+                            auto_feed = pet_settings.auto_feed.get()  # 获取是否自动喂食
+                            num_pets = pet_settings.num_pets.get()  # 获取宠物数量
                             
-                            # 处理宠物药水
-                            fam_interval = ib.get('Familiar pot')  # 获取宠物药水间隔
-                            if fam_interval > 0 and now - last_familiar_buff >= fam_interval:
-                                press(self.config['Familiar pot'], 1)  # 按下宠物药水按键
-                                time.sleep(2)  # 等待2秒
-                                last_familiar_buff = now  # 更新上次使用时间
+                            # 自动喂食宠物
+                            if auto_feed and now - last_fed > 1200 / num_pets:
+                                press(self.config['Feed pet'], 1)  # 按下喂食宠物的按键
+                                last_fed = now  # 更新上次喂食时间
+                            
+                            # 处理物品buff
+                            ib = getattr(getattr(getattr(config, 'gui', None), 'settings', None), 'item_buffs', None)
+                            ib = ib.settings if ib else None
+                            if ib:
+                                # 处理1-4号物品buff
+                                for i in range(1, 5):
+                                    interval = ib.get(f'Item buff {i}')  # 获取buff间隔
+                                    # 如果间隔大于0且（首次使用或已超过间隔时间）
+                                    if interval > 0 and (last_item_buff[i] == 0 or now - last_item_buff[i] >= interval):
+                                        press(self.config[f'Item buff {i}'], 1)  # 按下物品buff按键
+                                        time.sleep(1)  # 等待1秒（减少等待时间）
+                                        last_item_buff[i] = now  # 更新上次使用时间
+                                
+                                # 处理宠物药水
+                                fam_interval = ib.get('Familiar pot')  # 获取宠物药水间隔
+                                if fam_interval > 0 and now - last_familiar_buff >= fam_interval:
+                                    press(self.config['Familiar pot'], 1)  # 按下宠物药水按键
+                                    time.sleep(1)  # 等待1秒（减少等待时间）
+                                    last_familiar_buff = now  # 更新上次使用时间
                     except Exception as e:
                         print(f'[!] buff/喂食逻辑错误: {e}')
                         time.sleep(1)  # 出错后暂停1秒
 
-                    # 位置监控：如果玩家3秒未移动则执行跳跃
+                    # 位置监控：如果玩家5秒未移动则执行跳跃（增加时间阈值）
                     try:
                         current_pos = config.player_pos  # 获取当前玩家位置
                         if current_pos != (0, 0):  # 仅当位置有效时
@@ -146,33 +149,35 @@ class Bot(Configurable):
                                 # 玩家已移动，更新上次位置和时间
                                 self.last_position = current_pos
                                 self.position_time = now
-                            elif now - self.position_time > 3:  # 如果玩家3秒未移动
-                                # 玩家3秒未移动，执行跳跃
-                                print('[~] 玩家3秒未移动，执行跳跃')
+                            elif now - self.position_time > 5:  # 如果玩家5秒未移动（增加时间阈值）
+                                # 玩家5秒未移动，执行跳跃
+                                print('[~] 玩家5秒未移动，执行跳跃')
                                 # 随机选择左右方向
                                 direction = random.choice(['left', 'right'])
                                 # 按下方向键并跳跃
                                 key_down(direction)
-                                time.sleep(0.1)  # 短暂延迟
+                                time.sleep(0.05)  # 减少延迟
                                 # 使用命令书中Key类的跳跃键
                                 jump_key = getattr(self.command_book.module.Key, 'JUMP', 'c')
-                                press(jump_key, 2)  # 二段跳（按1次）
+                                press(jump_key, 1)  # 减少跳跃次数
                                 key_up(direction)  # 释放方向键
-                                time.sleep(0.6)  # 短暂延迟
+                                time.sleep(0.3)  # 减少延迟
                                 # 跳跃后更新位置时间
                                 self.position_time = now
                     except Exception as e:
                         print(f'[!] 位置监控错误: {e}')
                         time.sleep(1)  # 出错后暂停1秒
 
-                    # Highlight the current Point
+                    # 高亮当前点
                     try:
-                        config.gui.view.routine.select(config.routine.index)
-                        config.gui.view.details.display_info(config.routine.index)
+                        # 减少GUI更新频率，每3帧更新一次
+                        if gc_counter % 3 == 0:
+                            config.gui.view.routine.select(config.routine.index)
+                            config.gui.view.details.display_info(config.routine.index)
                     except Exception as e:
-                        print(f'[!] Error in GUI update: {e}')
+                        print(f'[!] GUI更新错误: {e}')
 
-                    # Execute next Point in the routine
+                    # 执行例程中的下一个点
                     try:
                         element = config.routine[config.routine.index]
                         if self.rune_active and isinstance(element, Point) \
@@ -181,24 +186,27 @@ class Bot(Configurable):
                         element.execute()
                         config.routine.step()
                     except Exception as e:
-                        print(f'[!] Error in routine execution: {e}')
+                        print(f'[!] 例程执行错误: {e}')
                         time.sleep(1)
                 else:
-                    time.sleep(0.01)
+                    time.sleep(0.02)  # 增加空闲时的延迟
                 
-                # Periodic garbage collection every ~1000 iterations to help free memory
+                # 每约500次迭代进行一次垃圾回收以帮助释放内存
                 gc_counter += 1
-                if gc_counter >= 1000:
+                if gc_counter >= 500:
                     import gc
                     gc.collect()
                     gc_counter = 0
             except Exception as e:
-                print(f'[!] Critical error in main bot loop: {e}')
+                print(f'[!] 主bot循环中的严重错误: {e}')
                 import traceback
                 traceback.print_exc()
-                # Pause to allow recovery
+                # 暂停以允许恢复
                 time.sleep(5)
-                # Try to recalibrate minimap
+                # 严重错误后强制进行垃圾回收
+                import gc
+                gc.collect()
+                # 尝试重新校准小地图
                 try:
                     config.capture.calibrated = False
                 except:
@@ -304,8 +312,8 @@ class Bot(Configurable):
 
     def _get_next_failed_image_number(self):
         """
-        Return the next sequential number for failed detection images.
-        Scans existing image_1.png, image_2.png, ... so numbering persists across restarts.
+        返回失败检测图像的下一个序号。
+        扫描现有的 image_1.png, image_2.png, ... 使编号在重启后保持连续。
         """
         os.makedirs(FAILED_DETECTIONS_FOLDER, exist_ok=True)
         max_num = 0
@@ -316,7 +324,7 @@ class Bot(Configurable):
         return max_num + 1
 
     def _save_failed_detection(self, frame, vertical_offset: int = 50):
-        """Save a frame to failed_detections/image_N.png when rune detection fails. Crops to 640x640 like detection."""
+        """当符文检测失败时，将帧保存到 failed_detections/image_N.png。裁剪为 640x640，与检测时相同。"""
         try:
             os.makedirs(FAILED_DETECTIONS_FOLDER, exist_ok=True)
             next_num = self._get_next_failed_image_number()
@@ -328,25 +336,25 @@ class Bot(Configurable):
             img = Image.fromarray(rgb)
             img_cropped = crop_to_640x640(img, vertical_offset=vertical_offset)
             img_cropped.save(failed_image_path)
-            print(f"Saved failed detection to {failed_image_path}")
+            print(f"已将失败检测保存到 {failed_image_path}")
         except Exception as e:
-            print(f"Error saving failed detection: {e}")
+            print(f"保存失败检测时出错: {e}")
 
     def load_commands(self, file):
         try:
             self.command_book = CommandBook(file)
             config.gui.settings.update_class_bindings()
         except ValueError:
-            pass    # TODO: UI warning popup, say check cmd for errors
+            pass    # TODO: UI警告弹窗，提示检查命令文件错误
 
     def update_submodules(self, force=False):
         """
-        Pulls updates from the submodule repositories. If FORCE is True,
-        rebuilds submodules by overwriting all local changes.
+        从子模块仓库拉取更新。如果 FORCE 为 True，
+        通过覆盖所有本地更改来重建子模块。
         """
 
         utils.print_separator()
-        print('[~] Retrieving latest submodules:')
+        print('[~] 获取最新子模块:')
         self.submodules = []
         repo = git.Repo.init()
         with open('.gitmodules', 'r') as file:
@@ -358,22 +366,22 @@ class Bot(Configurable):
                     url = lines[i + 2].split('=')[1].strip()
                     self.submodules.append(path)
                     try:
-                        repo.git.clone(url, path)       # First time loading submodule
-                        print(f" -  Initialized submodule '{path}'")
+                        repo.git.clone(url, path)       # 首次加载子模块
+                        print(f" -  初始化子模块 '{path}'")
                     except git.exc.GitCommandError:
                         sub_repo = git.Repo(path)
                         if not force:
-                            sub_repo.git.stash()        # Save modified content
+                            sub_repo.git.stash()        # 保存修改的内容
                         sub_repo.git.fetch('origin', 'main')
                         sub_repo.git.reset('--hard', 'FETCH_HEAD')
                         if not force:
-                            try:                # Restore modified content
+                            try:                # 恢复修改的内容
                                 sub_repo.git.checkout('stash', '--', '.')
-                                print(f" -  Updated submodule '{path}', restored local changes")
+                                print(f" -  更新子模块 '{path}'，恢复本地更改")
                             except git.exc.GitCommandError:
-                                print(f" -  Updated submodule '{path}'")
+                                print(f" -  更新子模块 '{path}'")
                         else:
-                            print(f" -  Rebuilt submodule '{path}'")
+                            print(f" -  重建子模块 '{path}'")
                         sub_repo.git.stash('clear')
                     i += 3
                 else:

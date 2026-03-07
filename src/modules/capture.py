@@ -1,4 +1,4 @@
-"""A module for tracking useful in-game information."""
+"""一个用于跟踪游戏内有用信息的模块。"""
 
 import time
 import gc
@@ -14,37 +14,37 @@ user32 = ctypes.windll.user32
 user32.SetProcessDPIAware()
 
 
-# The distance between the top of the minimap and the top of the screen
+# 小地图顶部到屏幕顶部的距离
 MINIMAP_TOP_BORDER = 5
 
-# The thickness of the other three borders of the minimap
+# 小地图其他三个边框的厚度
 MINIMAP_BOTTOM_BORDER = 9
 
-# Offset in pixels to adjust for windowed mode
+# 窗口模式下的像素偏移调整
 WINDOWED_OFFSET_TOP = 36
 WINDOWED_OFFSET_LEFT = 10
 
-# The top-left and bottom-right corners of the minimap
+# 小地图的左上角和右下角
 MM_TL_TEMPLATE = cv2.imread('assets/minimap_tl_template.png', 0)
 MM_BR_TEMPLATE = cv2.imread('assets/minimap_br_template.png', 0)
 
 MMT_HEIGHT = max(MM_TL_TEMPLATE.shape[0], MM_BR_TEMPLATE.shape[0])
 MMT_WIDTH = max(MM_TL_TEMPLATE.shape[1], MM_BR_TEMPLATE.shape[1])
 
-# The player's symbol on the minimap
+# 小地图上的玩家符号
 PLAYER_TEMPLATE = cv2.imread('assets/player_template.png', 0)
 PT_HEIGHT, PT_WIDTH = PLAYER_TEMPLATE.shape
 
 
 class Capture:
     """
-    A class that tracks player position and various in-game events. It constantly updates
-    the config module with information regarding these events. It also annotates and
-    displays the minimap in a pop-up window.
+    一个跟踪玩家位置和各种游戏内事件的类。它不断更新
+    config 模块，提供有关这些事件的信息。它还会注释并
+    在弹出窗口中显示小地图。
     """
 
     def __init__(self):
-        """Initializes this Capture object's main thread."""
+        """初始化此 Capture 对象的主线程。"""
 
         config.capture = self
 
@@ -64,26 +64,26 @@ class Capture:
         self.calibrated = False
         self.thread = threading.Thread(target=self._main)
         self.thread.daemon = True
-        # Reuse a single buffer for screenshots to avoid allocating 4+ MiB every ~1 ms (ArrayMemoryError).
+        # 重用单个缓冲区进行屏幕截图，以避免每 ~1 毫秒分配 4+ MiB（ArrayMemoryError）。
         self._frame_buffer = None
-        self._gc_counter = 0  # Counter for periodic garbage collection
+        self._gc_counter = 0  # 周期性垃圾回收的计数器
 
     def start(self):
-        """Starts this Capture's thread."""
+        """启动此 Capture 的线程。"""
 
-        print('\n[~] Started video capture')
+        print('\n[~] 启动视频捕获')
         self.thread.start()
 
     def _main(self):
-        """Constantly monitors the player's position and in-game events."""
+        """持续监控玩家位置和游戏内事件。"""
 
         mss.windows.CAPTUREBLT = 0
         while True:
             try:
-                # Calibrate screen capture
+                # 校准屏幕捕获
                 handle = user32.FindWindowW(None, 'MapleStory')
                 if not handle:
-                    print('[!] MapleStory window not found, waiting...')
+                    print('[!] 未找到 MapleStory 窗口，等待中...')
                     time.sleep(5)
                     continue
                 
@@ -97,13 +97,13 @@ class Capture:
                 self.window['width'] = max(rect[2] - rect[0], MMT_WIDTH)
                 self.window['height'] = max(rect[3] - rect[1], MMT_HEIGHT)
 
-                # Calibrate by finding the top-left and bottom-right corners of the minimap
+                # 通过找到小地图的左上角和右下角来校准
                 try:
                     with mss.mss() as self.sct:
                         self.frame = self.screenshot()
                     if self.frame is None:
                         continue
-                    # Search only in the top-left 30% of the frame (minimap is always there)
+                    # 仅在帧的左上角 30% 搜索（小地图总是在那里）
                     h_frame, w_frame = self.frame.shape[:2]
                     temp_frame = self.frame[0 : int(h_frame * 0.3), 0 : int(w_frame * 0.3)]
                     tl, _ = utils.single_match(temp_frame, MM_TL_TEMPLATE)
@@ -119,9 +119,9 @@ class Capture:
                     self.minimap_ratio = (mm_br[0] - mm_tl[0]) / (mm_br[1] - mm_tl[1])
                     self.minimap_sample = self.frame[mm_tl[1]:mm_br[1], mm_tl[0]:mm_br[0]]
                     self.calibrated = True
-                    print('[~] Minimap calibrated successfully')
+                    print('[~] 小地图校准成功')
                 except Exception as e:
-                    print(f'[!] Error during calibration: {e}')
+                    print(f'[!] 校准过程中出错: {e}')
                     time.sleep(2)
                     continue
 
@@ -131,24 +131,24 @@ class Capture:
                             break
 
                         try:
-                            # Take screenshot
+                            # 截图
                             self.frame = self.screenshot()
                             if self.frame is None:
                                 continue
 
-                            # Crop the frame to only show the minimap (copy so GUI thread
-                            # does not hold a reference to the full frame and cause memory pressure).
+                            # 裁剪帧以仅显示小地图（复制以便 GUI 线程
+                            # 不会持有对完整帧的引用并导致内存压力）。
                             minimap = self.frame[mm_tl[1]:mm_br[1], mm_tl[0]:mm_br[0]].copy()
 
-                            # Determine the player's position
+                            # 确定玩家位置
                             player = utils.multi_match(minimap, PLAYER_TEMPLATE, threshold=0.8)
                             if player:
                                 config.player_pos = utils.convert_to_relative(player[0], minimap)
                             else:
-                                # If player not found, keep last position but don't update
+                                # 如果未找到玩家，保持最后位置但不更新
                                 pass
 
-                            # Package display information to be polled by GUI
+                            # 打包显示信息以供 GUI 轮询
                             self.minimap = {
                                 'minimap': minimap,
                                 'rune_active': config.bot.rune_active,
@@ -160,40 +160,42 @@ class Capture:
                             if not self.ready:
                                 self.ready = True
                             
-                            # Periodic garbage collection every ~100 frames (~1.6s at 60fps) to help
-                            # free memory when system is under pressure (reduces "unable to alloc" errors).
+                            # 每约50帧（50fps下约1秒）进行一次垃圾回收，以帮助
+                            # 在系统压力下释放内存（减少"无法分配"错误）。
                             self._gc_counter += 1
-                            if self._gc_counter >= 100:
+                            if self._gc_counter >= 50:
                                 gc.collect()
                                 self._gc_counter = 0
                             
-                            # ~60 fps to reduce mss allocation pressure (grab allocates internally).
-                            time.sleep(0.016)
+                            # ~50 fps 以减少 mss 分配压力（grab 内部会分配）。
+                            time.sleep(0.02)
                         except Exception as e:
-                            print(f'[!] Error in capture loop: {e}')
-                            # Pause and try to recover
+                            print(f'[!] 捕获循环中的错误: {e}')
+                            # 暂停并尝试恢复
                             time.sleep(1)
-                            # Try to recalibrate if needed
+                            # 必要时尝试重新校准
                             if not self.calibrated:
                                 break
             except Exception as e:
-                print(f'[!] Critical error in capture main loop: {e}')
+                print(f'[!] 捕获主循环中的严重错误: {e}')
                 import traceback
                 traceback.print_exc()
-                # Pause to allow recovery
+                # 暂停以允许恢复
                 time.sleep(5)
+                # 严重错误后强制进行垃圾回收
+                gc.collect()
 
     def get_minimap_from_frame(self, frame):
         """
-        Find the minimap by searching the entire frame for TL/BR corners (no ROI).
-        Use this when the pre-cropped minimap might be wrong (e.g. for auto routine resolution).
-        Converts BGRA (mss) to BGR so matching matches test_minimap_finder / cv2.imread.
-        :param frame: Full game window image (e.g. self.frame), BGR or BGRA
-        :return: Minimap crop as numpy array, or None if not found
+        通过在整个帧中搜索 TL/BR 角来找到小地图（无 ROI）。
+        当预裁剪的小地图可能错误时使用此方法（例如，用于自动例程解析）。
+        将 BGRA（mss）转换为 BGR，以便匹配测试小地图查找器 / cv2.imread。
+        :param frame: 完整的游戏窗口图像（例如 self.frame），BGR 或 BGRA
+        :return: 小地图裁剪作为 numpy 数组，如果未找到则返回 None
         """
         if frame is None or frame.size == 0:
             return None
-        # Normalise to BGR so matching is same as test script (saved frame loaded as BGR)
+        # 标准化为 BGR，以便匹配与测试脚本相同（保存的帧加载为 BGR）
         if frame.ndim == 3 and frame.shape[2] == 4:
             frame = cv2.cvtColor(frame, cv2.COLOR_BGRA2BGR)
         h, w = frame.shape[:2]
@@ -210,7 +212,7 @@ class Capture:
             max(mm_tl[0] + PT_WIDTH, br[0] - MINIMAP_BOTTOM_BORDER),
             max(mm_tl[1] + PT_HEIGHT, br[1] - MINIMAP_BOTTOM_BORDER)
         )
-        # Bounds check so we never return invalid crop
+        # 边界检查，确保我们永远不会返回无效裁剪
         if mm_br[0] <= mm_tl[0] or mm_br[1] <= mm_tl[1]:
             return None
         if mm_tl[0] < 0 or mm_tl[1] < 0 or mm_br[0] > w or mm_br[1] > h:
@@ -230,13 +232,13 @@ class Capture:
             )
             return self._frame_buffer
         except MemoryError:
-            # mss allocates a bytearray inside grab(); when system is low on memory
-            # that can fail. Force GC and pause, then retry so the loop can continue.
-            print('\n[!] Capture: memory error in screenshot, forcing GC then retrying...')
+            # mss 在 grab() 内部分配字节数组；当系统内存不足时
+            # 这可能会失败。强制 GC 并暂停，然后重试，以便循环可以继续。
+            print('\n[!] 捕获：截图时内存错误，强制 GC 然后重试...')
             gc.collect()
             time.sleep(2)
             return None
         except mss.exception.ScreenShotError:
-            print(f'\n[!] Error while taking screenshot, retrying in {delay} second'
+            print(f'\n[!] 截图时出错，{delay} 秒后重试'
                   + ('s' if delay != 1 else ''))
             time.sleep(delay)

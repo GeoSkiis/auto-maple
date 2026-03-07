@@ -1,4 +1,4 @@
-"""The central program that ties all the modules together."""
+"""将所有模块连接在一起的中央程序。"""
 
 import time
 from src.modules.bot import Bot
@@ -29,7 +29,7 @@ listener.start()
 while not listener.ready:
     time.sleep(0.01)
 
-print('\n[~] Successfully initialized Auto Maple')
+print('\n[~] Auto Maple 初始化成功')
 
 gui = GUI()
 gui.start()

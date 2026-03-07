@@ -1,48 +1,48 @@
-"""A collection of variables shared across multiple modules."""
+"""多个模块共享的变量集合。"""
 
 
 #########################
-#       Constants       #
+#       常量       #
 #########################
 RESOURCES_DIR = 'resources'
 
 
 #################################
-#       Global Variables        #
+#       全局变量        #
 #################################
-# The player's position relative to the minimap
+# 玩家相对于小地图的位置
 player_pos = (0, 0)
 
-# Describes whether the main bot loop is currently running or not
+# 描述主机器人循环当前是否运行
 enabled = False
 
-# If there is another player in the map, Auto Maple will purposely make random human-like mistakes
+# 如果地图中有其他玩家，Auto Maple 会故意犯一些随机的人类错误
 stage_fright = True
 
-# Represents the current shortest path that the bot is taking
+# 表示机器人当前正在走的最短路径
 path = []
 
-# User-selected minimap path (File > Load Minimap). When set, auto routine uses this instead of OCR.
+# 用户选择的小地图路径（文件 > 加载小地图）。设置后，自动例程使用此路径而不是 OCR。
 selected_minimap_path = None
 
 
 #############################
-#       Shared Modules      #
+#       共享模块      #
 #############################
-# A Routine object that manages the 'machine code' of the current routine
+# 管理当前例程 "机器代码" 的 Routine 对象
 routine = None
 
-# Stores the Layout object associated with the current routine
+# 存储与当前例程关联的 Layout 对象
 layout = None
 
-# Shares the main bot loop
+# 共享主机器人循环
 bot = None
 
-# Shares the video capture loop
+# 共享视频捕获循环
 capture = None
 
-# Shares the keyboard listener
+# 共享键盘监听器
 listener = None
 
-# Shares the gui to all modules
+# 向所有模块共享 GUI
 gui = None

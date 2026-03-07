@@ -1,29 +1,28 @@
 """
-A list of user-defined settings that can be changed by routines. Also contains a collection
-of validator functions that can be used to enforce parameter types.
+用户定义的设置列表，可由例程更改。还包含一组可用于强制参数类型的验证函数。
 """
 
 
 #################################
-#      Validator Functions      #
+#      验证函数      #
 #################################
 def validate_nonnegative_int(value):
     """
-    Checks whether VALUE can be a valid non-negative integer.
-    :param value:   The string to check.
-    :return:        VALUE as an integer.
+    检查 VALUE 是否可以是有效的非负整数。
+    :param value:   要检查的字符串。
+    :return:        作为整数的 VALUE。
     """
 
     if int(value) >= 1:
         return int(value)
-    raise ValueError(f"'{value}' is not a valid non-negative integer.")
+    raise ValueError(f"'{value}' 不是有效的非负整数。")
 
 
 def validate_boolean(value):
     """
-    Checks whether VALUE is a valid Python boolean.
-    :param value:   The string to check.
-    :return:        VALUE as a boolean
+    检查 VALUE 是否是有效的 Python 布尔值。
+    :param value:   要检查的字符串。
+    :return:        作为布尔值的 VALUE
     """
 
     value = value.lower()
@@ -31,48 +30,48 @@ def validate_boolean(value):
         return True if value == 'true' else False
     elif int(value) in {0, 1}:
         return bool(int(value))
-    raise ValueError(f"'{value}' is not a valid boolean.")
+    raise ValueError(f"'{value}' 不是有效的布尔值。")
 
 
 def validate_arrows(key):
     """
-    Checks whether string KEY is an arrow key.
-    :param key:     The key to check.
-    :return:        KEY in lowercase if it is a valid arrow key.
+    检查字符串 KEY 是否是箭头键。
+    :param key:     要检查的键。
+    :return:        如果是有效的箭头键，则返回小写的 KEY。
     """
 
     if isinstance(key, str):
         key = key.lower()
         if key in ['up', 'down', 'left', 'right']:
             return key
-    raise ValueError(f"'{key}' is not a valid arrow key.")
+    raise ValueError(f"'{key}' 不是有效的箭头键。")
 
 
 def validate_horizontal_arrows(key):
     """
-    Checks whether string KEY is either a left or right arrow key.
-    :param key:     The key to check.
-    :return:        KEY in lowercase if it is a valid horizontal arrow key.
+    检查字符串 KEY 是否是左箭头键或右箭头键。
+    :param key:     要检查的键。
+    :return:        如果是有效的水平箭头键，则返回小写的 KEY。
     """
 
     if isinstance(key, str):
         key = key.lower()
         if key in ['left', 'right']:
             return key
-    raise ValueError(f"'{key}' is not a valid horizontal arrow key.")
+    raise ValueError(f"'{key}' 不是有效的水平箭头键。")
 
 
 #########################
-#       Settings        #
+#       设置        #
 #########################
 def validate_positive_float(value):
     v = float(value)
     if v > 0:
         return v
-    raise ValueError(f"'{value}' is not a valid positive number.")
+    raise ValueError(f"'{value}' 不是有效的正数。")
 
 
-# A dictionary that maps each setting to its validator function
+# 将每个设置映射到其验证函数的字典
 SETTING_VALIDATORS = {
     'move_tolerance': float,
     'adjust_tolerance': float,
@@ -84,7 +83,7 @@ SETTING_VALIDATORS = {
 
 
 def reset():
-    """Resets all settings to their default values."""
+    """将所有设置重置为默认值。"""
 
     global move_tolerance, adjust_tolerance, record_layout, buff_cooldown
     global skill_rotation_mode, skill_rotation_duration
@@ -96,19 +95,19 @@ def reset():
     skill_rotation_duration = 5.0
 
 
-# The allowed error from the destination when moving towards a Point
+# 向 Point 移动时与目标的允许误差
 move_tolerance = 0.07
 
-# The allowed error from a specific location while adjusting to that location
+# 调整到特定位置时与该位置的允许误差
 adjust_tolerance = 0.03
 
-# Whether the bot should save new player positions to the current layout
+# 机器人是否应该将新的玩家位置保存到当前布局
 record_layout = False
 
-# The amount of time (in seconds) to wait between each call to the 'buff' command
+# 每次调用 'buff' 命令之间等待的时间（以秒为单位）
 buff_cooldown = 180
 
-# If True, at each Point run random off-cooldown skills for skill_rotation_duration instead of the point's commands
+# 如果为 True，在每个 Point 运行随机的冷却技能，持续 skill_rotation_duration 时间，而不是执行该点的命令
 skill_rotation_mode = False
 skill_rotation_duration = 5.0
 

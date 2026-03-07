@@ -1,4 +1,4 @@
-"""A collection of classes used to execute a Routine."""
+"""用于执行例程的类集合。"""
 
 import math
 import random
@@ -16,13 +16,13 @@ class Component:
 
     def __init__(self, *args, **kwargs):
         if len(args) > 1:
-            raise TypeError('Component superclass __init__ only accepts 1 (optional) argument: LOCALS')
+            raise TypeError('Component 超类 __init__ 只接受 1 个（可选）参数：LOCALS')
         if len(kwargs) != 0:
-            raise TypeError('Component superclass __init__ does not accept any keyword arguments')
+            raise TypeError('Component 超类 __init__ 不接受任何关键字参数')
         if len(args) == 0:
             self.kwargs = {}
         elif type(args[0]) != dict:
-            raise TypeError("Component superclass __init__ only accepts arguments of type 'dict'.")
+            raise TypeError("Component 超类 __init__ 只接受类型为 'dict' 的参数。")
         else:
             self.kwargs = args[0].copy()
             self.kwargs.pop('__class__')
@@ -36,13 +36,13 @@ class Component:
         pass
 
     def update(self, *args, **kwargs):
-        """Updates this Component's constructor arguments with new arguments."""
+        """使用新参数更新此组件的构造函数参数。"""
 
-        self.__class__(*args, **kwargs)     # Validate arguments before actually updating values
+        self.__class__(*args, **kwargs)     # 在实际更新值之前验证参数
         self.__init__(*args, **kwargs)
 
     def info(self):
-        """Returns a dictionary of useful information about this Component."""
+        """返回有关此组件的有用信息字典。"""
 
         return {
             'name': self.__class__.__name__,
@@ -50,7 +50,7 @@ class Component:
         }
 
     def encode(self):
-        """Encodes an object using its ID and its __init__ arguments."""
+        """使用对象的 ID 及其 __init__ 参数对对象进行编码。"""
 
         arr = [self.id]
         for key, value in self.kwargs.items():
@@ -60,7 +60,7 @@ class Component:
 
 
 class Point(Component):
-    """Represents a location in a user-defined routine."""
+    """表示用户定义例程中的位置。"""
 
     id = '*'
 
@@ -72,17 +72,17 @@ class Point(Component):
         self.frequency = settings.validate_nonnegative_int(frequency)
         self.counter = int(settings.validate_boolean(skip))
         self.adjust = settings.validate_boolean(adjust)
-        if not hasattr(self, 'commands'):       # Updating Point should not clear commands
+        if not hasattr(self, 'commands'):       # 更新 Point 时不应清除命令
             self.commands = []
 
     def main(self):
-        """Executes the set of actions associated with this Point."""
+        """执行与此 Point 关联的操作集。"""
 
         if self.counter == 0:
             move = config.bot.command_book['move']
             move(*self.location).execute()
             if self.adjust:
-                adjust = config.bot.command_book['adjust']      # TODO: adjust using step('up')?
+                adjust = config.bot.command_book['adjust']      # TODO: 使用 step('up') 进行调整？
                 adjust(*self.location).execute()
             if settings.skill_rotation_mode:
                 SkillRotation(duration=settings.skill_rotation_duration).execute()
@@ -93,7 +93,7 @@ class Point(Component):
 
     @utils.run_if_enabled
     def _increment_counter(self):
-        """Increments this Point's counter, wrapping back to 0 at the upper bound."""
+        """增加此 Point 的计数器，达到上限时回绕到 0。"""
 
         self.counter = (self.counter + 1) % self.frequency
 
@@ -138,7 +138,7 @@ class Label(Component):
 
 
 class Jump(Component):
-    """Jumps to the given Label."""
+    """跳转到指定的 Label。"""
 
     id = '>'
 
@@ -151,7 +151,7 @@ class Jump(Component):
 
     def main(self):
         if self.link is None:
-            print(f"\n[!] Label '{self.label}' does not exist.")
+            print(f"\n[!] 标签 '{self.label}' 不存在。")
         else:
             if self.counter == 0:
                 config.routine.index = self.link.index
@@ -163,9 +163,9 @@ class Jump(Component):
 
     def bind(self):
         """
-        Binds this Goto to its corresponding Label. If the Label's index changes, this Goto
-        instance will automatically be able to access the updated value.
-        :return:    Whether the binding was successful
+        将此 Jump 绑定到其对应的 Label。如果 Label 的索引更改，此 Jump
+        实例将自动能够访问更新后的值。
+        :return:    绑定是否成功
         """
 
         if self.label in config.routine.labels:
@@ -183,7 +183,7 @@ class Jump(Component):
 
 
 class Setting(Component):
-    """Changes the value of the given setting variable."""
+    """更改给定设置变量的值。"""
 
     id = '$'
 
@@ -191,7 +191,7 @@ class Setting(Component):
         super().__init__(locals())
         self.key = str(target)
         if self.key not in settings.SETTING_VALIDATORS:
-            raise ValueError(f"Setting '{target}' does not exist")
+            raise ValueError(f"设置 '{target}' 不存在")
         self.value = settings.SETTING_VALIDATORS[self.key](value)
 
     def main(self):
@@ -278,7 +278,7 @@ def _try_skill_during_move():
 
 
 class Move(Command):
-    """Moves to a given position using the shortest path based on the current Layout."""
+    """使用基于当前布局的最短路径移动到指定位置。"""
 
     def __init__(self, x, y, max_steps=15):
         super().__init__(locals())
@@ -720,8 +720,8 @@ class SkillRotation(Command):
 
 
 class Buff(Command):
-    """Undefined 'buff' command for the default command book."""
+    """默认命令书中未定义的 'buff' 命令。"""
 
     def main(self):
-        print("\n[!] 'Buff' command not implemented in current command book, aborting process.")
+        print("\n[!] 当前命令书中未实现 'Buff' 命令，中止进程。")
         config.enabled = False
