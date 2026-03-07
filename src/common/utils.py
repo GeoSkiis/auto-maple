@@ -256,7 +256,8 @@ def bernoulli(p):
 def rand_float(start, end):
     """返回区间 [START, END) 中的随机浮点值。"""
 
-    assert start < end, 'START 必须小于 END'
+    if start >= end:
+        return start
     return (end - start) * random() + start
 
 

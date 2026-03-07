@@ -34,12 +34,18 @@ class File(MenuBarItem):
             command=utils.async_callback(self, File._load_minimap),
             state=tk.DISABLED
         )
+        self.add_command(
+            label='Clear Minimap',
+            command=utils.async_callback(self, File._clear_minimap),
+            state=tk.DISABLED
+        )
 
     def enable_routine_state(self):
         self.entryconfig('New Routine', state=tk.NORMAL)
         self.entryconfig('Save Routine', state=tk.NORMAL)
         self.entryconfig('Load Routine', state=tk.NORMAL)
         self.entryconfig('Load Minimap', state=tk.NORMAL)
+        self.entryconfig('Clear Minimap', state=tk.NORMAL)
 
     @staticmethod
     @utils.run_if_disabled('\n[!] Cannot create a new routine while Auto Maple is enabled')
@@ -91,6 +97,17 @@ class File(MenuBarItem):
             config.gui.view.status.set_minimap(os.path.basename(file_path))
             print(f"\n[~] Loaded minimap: {file_path}")
             print("     When you start (Insert) with auto routine, waypoints will be taken from this map (OCR will be skipped).")
+
+    @staticmethod
+    @utils.run_if_disabled('\n[!] Cannot clear minimap while Auto Maple is enabled')
+    def _clear_minimap():
+        """Clear the currently selected minimap."""
+        if hasattr(config, 'selected_minimap_path'):
+            delattr(config, 'selected_minimap_path')
+        session.save(minimap_path='')
+        config.gui.view.status.set_minimap('None')
+        print("\n[~] Cleared selected minimap.")
+        print("     When you start (Insert) with auto routine, waypoints will be taken from OCR or live minimap.")
 
     @staticmethod
     @utils.run_if_disabled('\n[!] Cannot load command books while Auto Maple is enabled')

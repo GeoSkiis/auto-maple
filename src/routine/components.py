@@ -254,6 +254,9 @@ def _try_skill_during_move():
         setattr(config.bot, 'cooldown_tracker', tracker)
     # 筛选出有冷却时间的技能（冷却时间大于0）
     skill_ids = [k for k, cd in cooldowns.items() if cd > 0]
+    # 排除黑名单中的技能
+    blacklist = getattr(module, 'SKILL_ROTATION_BLACKLIST', [])
+    skill_ids = [k for k in skill_ids if k not in blacklist]
     # 筛选出当前可用的技能（冷却完毕的技能）
     available = [k for k in tracker.get_available() if k in skill_ids]
     # 如果没有可用技能，直接返回
@@ -311,14 +314,19 @@ class Move(Command):
             # 检查是否达到攻击时间间隔（2秒）
             current_time = time.time()
             if current_time - self.last_attack_time >= 2:
-                # 获取主要攻击键
-                main_attack_id = next((k for k, cd in getattr(module, 'SKILL_COOLDOWNS', {}).items() if cd == 0), None)
-                if main_attack_id:
-                    main_key = _resolve_key(module, main_attack_id)
-                    # 执行2次攻击
-                    press(main_key, 2, down_time=0.05, up_time=0.05)
-                    # 更新上次攻击时间
-                    self.last_attack_time = current_time
+                # 直接获取技能冷却为0的技能
+                cooldowns = getattr(module, 'SKILL_COOLDOWNS', {})
+                # 遍历所有技能，找到冷却时间为0的技能
+                for skill_id, cd in cooldowns.items():
+                    if cd == 0:
+                        # 解析技能按键
+                        main_key = _resolve_key(module, skill_id)
+                        # 执行2次攻击
+                        press(main_key, 2, down_time=0.05, up_time=0.05)
+                        # 更新上次攻击时间
+                        self.last_attack_time = current_time
+                        # 找到一个就足够了，退出循环
+                        break
 
     def main(self):
         """
@@ -679,6 +687,10 @@ class SkillRotation(Command):
                 attack_type = 'hold'
         # 确定可用于轮换的技能（冷却时间大于0的技能）
         skill_ids = [k for k, cd in cooldowns.items() if cd > 0]
+        # 排除黑名单中的技能
+        if module is not None:
+            blacklist = getattr(module, 'SKILL_ROTATION_BLACKLIST', [])
+            skill_ids = [k for k in skill_ids if k not in blacklist]
         # 计算技能轮换结束时间
         end = time.time() + self.duration
         # 主循环
@@ -699,9 +711,28 @@ class SkillRotation(Command):
             # 检查是否需要退出
             if not config.enabled or time.time() >= end:
                 break
-            # 如果有可用技能，随机选择一个使用
+            # 如果有可用技能，选择一个使用
             if available:
-                skill_id = random.choice(available)
+                # 优先处理终极无限1号和2号的交替释放
+                ultimate_skills = ['终极无限1号', '终极无限2号']
+                available_ultimate = [skill for skill in available if skill in ultimate_skills]
+                
+                if len(available_ultimate) > 1:
+                    # 检查是否都是初始状态（上次使用时间为0）
+                    all_initial = all(tracker.last_used.get(skill, 0) == 0 for skill in available_ultimate)
+                    if all_initial:
+                        # 初始状态下，只选择一个终极无限技能（默认选择1号）
+                        skill_id = '终极无限1号'
+                    else:
+                        # 如果两个终极无限都可用，选择上次使用时间更早的
+                        skill_id = min(available_ultimate, key=lambda skill: tracker.last_used.get(skill, 0))
+                elif available_ultimate:
+                    # 如果只有一个终极无限可用，使用它
+                    skill_id = available_ultimate[0]
+                else:
+                    # 否则随机选择一个其他技能
+                    skill_id = random.choice(available)
+                
                 press_count = 1
                 # 检查是否有指定的技能按键次数
                 if module is not None:
