@@ -257,7 +257,7 @@ class Routine:
         config.layout = Layout.load(file)
         config.gui.view.status.set_routine(basename(file))
         config.gui.edit.minimap.draw_default()
-        print(f" ~  完成加载例程 '{basename(splitext(file)[0]}'。")
+        print(f" ~  完成加载例程 '{basename(splitext(file)[0])}'。")
 
     def compile(self, file):
         self.labels = {}
