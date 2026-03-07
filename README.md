@@ -1,5 +1,3 @@
-# Auto Maple 项目 README 中文翻译
-
 <h1 align="center">
   Auto Maple
 </h1>
