@@ -13,7 +13,7 @@ class GUI:
     # Lower rate (10) reduces Tkinter canvas/itemconfig image leak over long runs (was 30)
     DISPLAY_FRAME_RATE = 10
     RESOLUTIONS = {
-        'DEFAULT': '700x800',
+        'DEFAULT': '800x800',
         'Edit': '1400x800'
     }
 
@@ -91,14 +91,13 @@ class GUI:
 
         nav = e.widget
         curr_id = nav.select()
-        nav.nametowidget(curr_id).focus()      # Focus the current Tab
-        # 不再强制重置窗口大小，允许用户自由调整
-        # page = nav.tab(curr_id, 'text')
-        # if self.root.state() != 'zoomed':
-        #     if page in GUI.RESOLUTIONS:
-        #         self.root.geometry(GUI.RESOLUTIONS[page])
-        #     else:
-        #         self.root.geometry(GUI.RESOLUTIONS['DEFAULT'])
+        nav.nametowidget(curr_id).focus()     
+        page = nav.tab(curr_id, 'text')
+        if self.root.state() != 'zoomed':
+            if page in GUI.RESOLUTIONS:
+                self.root.geometry(GUI.RESOLUTIONS[page])
+            else:
+                self.root.geometry(GUI.RESOLUTIONS['DEFAULT'])
 
     def start(self):
         """Starts the GUI as well as any scheduled functions."""

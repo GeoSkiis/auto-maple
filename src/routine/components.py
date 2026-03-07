@@ -232,32 +232,49 @@ class Command(Component):
 
 def _try_skill_during_move():
     """
-    If the current command book has SKILL_COOLDOWNS, use one random off-cooldown skill.
-    Uses the same CooldownTracker as SkillRotation so cooldowns stay in sync.
+    在移动过程中尝试使用技能
+    如果当前命令书有 SKILL_COOLDOWNS 配置，则使用一个随机的冷却完毕的技能
+    使用与 SkillRotation 相同的 CooldownTracker，确保冷却时间同步
     """
+    # 导入冷却追踪器
     from src.routine.cooldown_tracker import CooldownTracker
+    # 获取当前职业的模块
     module = getattr(config.bot.command_book, 'module', None) if getattr(config.bot, 'command_book', None) else None
+    # 获取技能冷却配置
     cooldowns = getattr(module, 'SKILL_COOLDOWNS', None) if module else None
+    # 如果没有冷却配置，直接返回
     if cooldowns is None:
         return
+    # 获取或创建冷却追踪器
     tracker = getattr(config.bot, 'cooldown_tracker', None)
+    # 如果追踪器不存在或冷却配置已更改，创建新的追踪器
     if tracker is None or getattr(tracker, '_cooldowns_ref', None) is not cooldowns:
         tracker = CooldownTracker(cooldowns)
         tracker._cooldowns_ref = cooldowns
         setattr(config.bot, 'cooldown_tracker', tracker)
+    # 筛选出有冷却时间的技能（冷却时间大于0）
     skill_ids = [k for k, cd in cooldowns.items() if cd > 0]
+    # 筛选出当前可用的技能（冷却完毕的技能）
     available = [k for k in tracker.get_available() if k in skill_ids]
+    # 如果没有可用技能，直接返回
     if not available:
         return
+    # 随机选择一个可用技能
     skill_id = random.choice(available)
+    # 默认为1次按键
     press_count = 1
+    # 如果模块有技能按键次数配置，使用配置的值
     if module is not None:
         skill_press_counts = getattr(module, 'SKILL_PRESS_COUNTS', None) or {}
         press_count = skill_press_counts.get(skill_id, 1)
+    # 解析技能按键（支持用户自定义按键绑定）
     actual_key = _resolve_key(module, skill_id)
+    # 执行技能按键
     press(actual_key, press_count, down_time=0.05, up_time=0.05)
+    # 记录技能使用时间（更新冷却时间）
     tracker.record_used(skill_id)
-    time.sleep(0.05)
+    # 短暂延迟，确保操作流畅
+    time.sleep(0.1)
 
 
 class Move(Command):
@@ -268,12 +285,40 @@ class Move(Command):
         self.target = (float(x), float(y))
         self.max_steps = settings.validate_nonnegative_int(max_steps)
         self.prev_direction = ''
+        self.last_attack_time = 0  # 上次攻击时间
 
     def _new_direction(self, new):
         key_down(new)
         if self.prev_direction and self.prev_direction != new:
             key_up(self.prev_direction)
         self.prev_direction = new
+        
+    def _check_and_perform_main_attack(self, direction):
+        """
+        检查是否需要执行主要攻击
+        当 Jump_Attack_TYPE = False 且 MAIN_ATTACK_TYPE = 'tap' 时，每2秒进行2次主要攻击
+        """
+        # 获取当前职业模块
+        module = getattr(config.bot.command_book, 'module', None) if getattr(config.bot, 'command_book', None) else None
+        if module is None:
+            return
+        
+        # 检查是否满足攻击条件
+        jump_attack_type = getattr(module, 'Jump_Attack_TYPE', True)
+        main_attack_type = getattr(module, 'MAIN_ATTACK_TYPE', 'hold').lower()
+        
+        if not jump_attack_type and main_attack_type == 'tap':
+            # 检查是否达到攻击时间间隔（2秒）
+            current_time = time.time()
+            if current_time - self.last_attack_time >= 2:
+                # 获取主要攻击键
+                main_attack_id = next((k for k, cd in getattr(module, 'SKILL_COOLDOWNS', {}).items() if cd == 0), None)
+                if main_attack_id:
+                    main_key = _resolve_key(module, main_attack_id)
+                    # 执行2次攻击
+                    press(main_key, 2, down_time=0.05, up_time=0.05)
+                    # 更新上次攻击时间
+                    self.last_attack_time = current_time
 
     def main(self):
         """
@@ -309,7 +354,7 @@ class Move(Command):
                         # 更新移动方向
                         self._new_direction(key)
                         # 30%概率在水平移动时跳跃，避免被梯子卡住
-                        if random.random() < 0.3:
+                        if random.random() < 0.1:
                             # 获取跳跃键（优先从命令书获取，否则使用默认值'space'）
                             jump_key = getattr(
                                 getattr(getattr(config.bot, 'command_book', None), 'module', None), 'Key', None
@@ -329,6 +374,8 @@ class Move(Command):
                         counter -= 1
                         # 尝试在移动过程中使用技能
                         _try_skill_during_move()
+                        # 检查是否需要执行主要攻击
+                        self._check_and_perform_main_attack(key)
                         # 如果不是最后一个路径点，添加短暂延迟
                         if i < len(path) - 1:
                             time.sleep(0.15)
