@@ -140,7 +140,7 @@ class Bot(Configurable):
                         print(f'[!] buff/喂食逻辑错误: {e}')
                         time.sleep(1)  # 出错后暂停1秒
 
-                    # 位置监控：如果玩家5秒未移动则执行跳跃（增加时间阈值）
+                    # 位置监控：如果玩家3秒未移动则执行跳跃（增加时间阈值）
                     try:
                         current_pos = config.player_pos  # 获取当前玩家位置
                         if current_pos != (0, 0):  # 仅当位置有效时
@@ -149,9 +149,9 @@ class Bot(Configurable):
                                 # 玩家已移动，更新上次位置和时间
                                 self.last_position = current_pos
                                 self.position_time = now
-                            elif now - self.position_time > 5:  # 如果玩家5秒未移动（增加时间阈值）
-                                # 玩家5秒未移动，执行跳跃
-                                print('[~] 玩家5秒未移动，执行跳跃')
+                            elif now - self.position_time > 3:  # 如果玩家3秒未移动（增加时间阈值）
+                                # 玩家3秒未移动，执行跳跃
+                                print('[~] 玩家3秒未移动，执行跳跃')
                                 # 随机选择左右方向
                                 direction = random.choice(['left', 'right'])
                                 # 按下方向键并跳跃
@@ -167,16 +167,6 @@ class Bot(Configurable):
                     except Exception as e:
                         print(f'[!] 位置监控错误: {e}')
                         time.sleep(1)  # 出错后暂停1秒
-
-                    # 高亮当前点
-                    try:
-                        # 减少GUI更新频率，每3帧更新一次
-                        if gc_counter % 3 == 0:
-                            config.gui.view.routine.select(config.routine.index)
-                            config.gui.view.details.display_info(config.routine.index)
-                    except Exception as e:
-                        print(f'[!] GUI更新错误: {e}')
-
                     # 执行例程中的下一个点
                     try:
                         element = config.routine[config.routine.index]
@@ -256,35 +246,28 @@ class Bot(Configurable):
                 print('找到解决方案，输入结果')
                 # 执行箭头键序列
                 for arrow in solution:
-                    press(arrow, 1, down_time=0.05)
+                    press(arrow, 1, down_time=0.1)
                 time.sleep(1)
                 
                 # 检查符文buff是否出现，确认符文已被成功解决
                 buff_found = False
                 for _ in range(3):
-                    time.sleep(0.3)
+                    time.sleep(0.5)
                     frame = config.capture.frame
                     # 在屏幕顶部区域查找符文buff图标
                     rune_buff = utils.multi_match(frame[:frame.shape[0] // 8, :],
                                                  RUNE_BUFF_TEMPLATE,
                                                  threshold=0.7)
-                    if rune_buff:
-                        # 找到最左边的符文buff图标
-                        rune_buff_pos = min(rune_buff, key=lambda p: p[0])
-                        # 计算绝对坐标
-                        target = (
-                            round(rune_buff_pos[0] + config.capture.window['left']),
-                            round(rune_buff_pos[1] + config.capture.window['top'])
-                        )
-                        # 右键点击buff图标
-                        click(target, button='right')
+                    if rune_buff and len(rune_buff) >= 2:
                         # 重置尝试次数
+                        print(f"检测到{len(rune_buff)}个符文buff，确认解符文成功")
                         attempts = 0
                         solution_found = True
                         buff_found = True
                         break
-                # 如果没有找到buff，不标记为成功
+                # 如果没有找到足够的buff，不标记为成功
                 if not buff_found:
+                    print("未检测到足够的符文buff，可能解符文失败")
                     solution_found = False
                 # 标记符文为非活动状态
                 self.rune_active = False
@@ -295,9 +278,10 @@ class Bot(Configurable):
             self._save_failed_detection(frame)
         
         # 如果没有找到解决方案且有符文帧，保存失败的检测并重置符文状态
-        if not solution_found and rune_frame is not None:
+        # if not solution_found and rune_frame is not None:
+        if not solution_found :
             print("检测到符文失败，尝试进入商城...")
-            self._save_failed_detection(rune_frame)
+            # self._save_failed_detection(rune_frame)
             utils.enter_cash_shop()  # 进入现金商店以重置状态
             print("已尝试进入商城")
             self.rune_active = False  # 标记符文为非活动状态
@@ -392,3 +376,10 @@ class Bot(Configurable):
                     i += 3
                 else:
                     i += 1
+    
+    def close(self):
+        """关闭资源，释放内存"""
+        # 关闭ArrowPredictionClient
+        if hasattr(self, 'prediction_client') and self.prediction_client is not None:
+            self.prediction_client.close()
+            self.prediction_client = None

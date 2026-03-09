@@ -74,6 +74,7 @@ class Notifier:
         self.thread.daemon = True
 
         self.rune_alert_delay = 270         # 4.5 分钟
+        self.last_rune_time = 0             # 上一次符文识别的时间
 
     def start(self):
         """启动此 Notifier 的线程。"""
@@ -218,13 +219,22 @@ class Notifier:
                         print(f"[!] 其他玩家检测错误: {e}")
 
                     # 检查符文
+                    now = time.time()
+                    rune_start_time = now
                     try:
-                        now = time.time()
                         if not config.bot.rune_active:
                             filtered = utils.filter_color(minimap, RUNE_RANGES)
                             matches = utils.multi_match(filtered, RUNE_TEMPLATE, threshold=0.9)
                             rune_start_time = now
                             if matches and config.routine.sequence:
+                                # 检查两次符文识别的时间间隔
+                                # if now - self.last_rune_time < 10 * 60:  # 10分钟
+                                #     print("检测到符文时间间隔小于10分钟，执行商城重置操作")
+                                #     utils.enter_cash_shop()  # 进入现金商店
+                                #     utils.exit_cash_shop()   # 退出现金商店
+                                #     print("商城重置操作完成")
+                                # 更新上一次符文识别时间
+                                self.last_rune_time = now
                                 abs_rune_pos = (matches[0][0], matches[0][1])
                                 config.bot.rune_pos = utils.convert_to_relative(abs_rune_pos, minimap)
                                 distances = list(map(distance_to_rune, config.routine.sequence))
@@ -234,9 +244,9 @@ class Notifier:
                                 self._ping('rune_appeared', volume=0.75)
                     except Exception as e:
                         print(f"[!] 符文检测错误: {e}")
-                    # elif now - rune_start_time > self.rune_alert_delay:     # 如果符文未被解决则发出警报
-                    #     config.bot.rune_active = False
-                    #     self._alert('siren')
+                    if now - rune_start_time > self.rune_alert_delay:     # 如果符文未被解决则发出警报
+                        config.bot.rune_active = False
+                        self._alert('siren')
                 except Exception as e:
                     print(f"[!] 通知器处理错误: {e}")
                 finally:

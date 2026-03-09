@@ -193,7 +193,7 @@ def key_down(key):
             print_press_msg = getattr(module, 'PRINT_PRESS_MSG', False)
         
         # 随机延迟
-        time.sleep(0.05 + 0.1 * random())
+        time.sleep(0.005 + 0.01 * random())
         
         if print_press_msg:
             print(f"Key down: '{key}'")
@@ -202,7 +202,7 @@ def key_down(key):
         user32.SendInput(1, ctypes.byref(x), ctypes.sizeof(x))
         
         # 随机延迟
-        time.sleep(0.05 + 0.1 * random())
+        time.sleep(0.005 + 0.01 * random())
 
 
 def key_up(key):
@@ -225,7 +225,7 @@ def key_up(key):
             print_press_msg = getattr(module, 'PRINT_PRESS_MSG', False)
         
         # 随机延迟
-        time.sleep(0.05 + 0.1 * random())
+        time.sleep(0.005 + 0.01 * random())
         
         if print_press_msg:
             print(f"Key up: '{key}'")
@@ -234,7 +234,7 @@ def key_up(key):
         user32.SendInput(1, ctypes.byref(x), ctypes.sizeof(x))
         
         # 随机延迟
-        time.sleep(0.05 + 0.1 * random())
+        time.sleep(0.005 + 0.01 * random())
 
 
 @run_if_enabled
@@ -248,11 +248,21 @@ def press(key, n, down_time=0.05, up_time=0.1):
     :return:            None
     """
 
+    # 检查是否需要打印按键信息
+    import src.common.config as config
+    print_press_msg = False
+    if hasattr(config.bot, 'command_book') and hasattr(config.bot.command_book, 'module'):
+        module = config.bot.command_book.module
+        print_press_msg = getattr(module, 'PRINT_PRESS_MSG', False)
+    
     for _ in range(n):
         key_down(key)
         time.sleep(down_time * (0.8 + 0.4 * random()))
         key_up(key)
         time.sleep(up_time * (0.8 + 0.4 * random()))
+    
+    if print_press_msg:
+        print(f"Pressed '{key}' {n} times")
 
 
 @run_if_enabled
@@ -268,7 +278,7 @@ def click(position, button='left'):
         print(f"'{button}' is not a valid mouse button.")
     else:
         # 随机延迟
-        time.sleep(0.05 + 0.1 * random())
+        time.sleep(0.005 + 0.01 * random())
         
         if button == 'left':
             down_event = win32con.MOUSEEVENTF_LEFTDOWN
@@ -284,14 +294,14 @@ def click(position, button='left'):
         win32api.SetCursorPos(target_position)
         
         # 随机延迟
-        time.sleep(0.05 + 0.1 * random())
+        time.sleep(0.005 + 0.01 * random())
         
         win32api.mouse_event(down_event, target_position[0], target_position[1], 0, 0)
         
         # 随机延迟
-        time.sleep(0.05 + 0.1 * random())
+        time.sleep(0.005 + 0.01 * random())
         
         win32api.mouse_event(up_event, target_position[0], target_position[1], 0, 0)
         
         # 随机延迟
-        time.sleep(0.05 + 0.1 * random())
+        time.sleep(0.005 + 0.01 * random())

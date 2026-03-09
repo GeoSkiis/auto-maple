@@ -225,7 +225,13 @@ class Capture:
             h, w = shot.height, shot.width
             need_shape = (h, w, 4)
             if self._frame_buffer is None or self._frame_buffer.shape != need_shape:
+                # 释放旧缓冲区（如果存在）
+                if self._frame_buffer is not None:
+                    # 显式释放内存
+                    self._frame_buffer = None
+                    gc.collect()
                 self._frame_buffer = np.empty(need_shape, dtype=np.uint8)
+            # 直接使用copyto，避免创建临时数组的引用
             np.copyto(
                 self._frame_buffer,
                 np.frombuffer(shot.raw, dtype=np.uint8).reshape(need_shape),
@@ -242,3 +248,4 @@ class Capture:
             print(f'\n[!] 截图时出错，{delay} 秒后重试'
                   + ('s' if delay != 1 else ''))
             time.sleep(delay)
+            return None

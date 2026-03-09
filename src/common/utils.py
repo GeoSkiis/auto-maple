@@ -304,8 +304,6 @@ def enter_cash_shop():
     while True:
         # 按 F5
         press("f5", 3, down_time=0.2, up_time=0.2)
-        print("已发送 F5")
-        
         # 等待一段时间让界面响应
         time.sleep(0.5)
         
