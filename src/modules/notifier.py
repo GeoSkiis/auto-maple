@@ -209,7 +209,7 @@ class Notifier:
                     # 检查其他玩家进入地图
                     try:
                         filtered = utils.filter_color(minimap, OTHER_RANGES)
-                        others = len(utils.multi_match(filtered, OTHER_TEMPLATE, threshold=0.5))
+                        others = len(utils.multi_match_color(filtered, OTHER_TEMPLATE, threshold=0.5))
                         config.stage_fright = others > 0
                         if others != prev_others:
                             if others > prev_others:
@@ -224,7 +224,7 @@ class Notifier:
                     try:
                         if not config.bot.rune_active:
                             filtered = utils.filter_color(minimap, RUNE_RANGES)
-                            matches = utils.multi_match(filtered, RUNE_TEMPLATE, threshold=0.9)
+                            matches = utils.multi_match_color(filtered, RUNE_TEMPLATE, threshold=0.9)
                             rune_start_time = now
                             if matches and config.routine.sequence:
                                 # 检查两次符文识别的时间间隔

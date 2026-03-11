@@ -141,7 +141,7 @@ class Capture:
                             minimap = self.frame[mm_tl[1]:mm_br[1], mm_tl[0]:mm_br[0]].copy()
 
                             # 确定玩家位置
-                            player = utils.multi_match(minimap, PLAYER_TEMPLATE, threshold=0.8)
+                            player = utils.multi_match_color(minimap, PLAYER_TEMPLATE, threshold=0.8)
                             if player:
                                 config.player_pos = utils.convert_to_relative(player[0], minimap)
                             else:

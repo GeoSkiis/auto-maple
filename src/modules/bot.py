@@ -18,8 +18,8 @@ from src.common.vkeys import press, click, key_down, key_up
 from src.common.interfaces import Configurable
 
 
-# 符文的 buff 图标
-RUNE_BUFF_TEMPLATE = cv2.imread('assets/rune_buff_template.jpg', 0)
+# 符文的 buff 图标，改为彩色读取，单独匹配彩色模板
+RUNE_BUFF_TEMPLATE = cv2.imread('assets/rune_buff_template.jpg', 1)
 
 # 符文检测失败时保存帧的文件夹（项目根目录）
 FAILED_DETECTIONS_FOLDER = "failed_detections"
@@ -253,11 +253,11 @@ class Bot(Configurable):
                 for _ in range(3):
                     time.sleep(0.5)
                     frame = config.capture.frame
-                    # 在屏幕顶部区域查找符文buff图标
-                    rune_buff = utils.multi_match(frame[:frame.shape[0] // 8, :],
-                                                 RUNE_BUFF_TEMPLATE,
-                                                 threshold=0.7)
-                    if rune_buff and len(rune_buff) >= 2:
+                    # 在屏幕顶部区域查找符文buff图标（启用彩色匹配）
+                    rune_buff = utils.multi_match_color(frame[:frame.shape[0] // 8, :],
+                                                       RUNE_BUFF_TEMPLATE,
+                                                       threshold=0.7)
+                    if rune_buff:
                         # 重置尝试次数
                         print(f"检测到{len(rune_buff)}个符文buff，确认解符文成功")
                         attempts = 0

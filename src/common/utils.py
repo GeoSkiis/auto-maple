@@ -67,20 +67,52 @@ def single_match(frame, template):
     bottom_right = (top_left[0] + w, top_left[1] + h)
     return top_left, bottom_right
 
-
-def multi_match(frame, template, threshold=0.95):
+def multi_match_color(frame, template, threshold=0.95):
     """
-    在 FRAME 中找到所有与 TEMPLATE 相似度至少为 THRESHOLD 的匹配项。
-    :param frame:       要搜索的图像。
-    :param template:    要匹配的模板。
-    :param threshold:   每个结果必须匹配 TEMPLATE 的最小百分比。
+    (彩色匹配)(彩色匹配)(彩色匹配)(彩色匹配)(彩色匹配)(彩色匹配)(彩色匹配)
+
+    在 FRAME 中找到所有与彩色 TEMPLATE 相似度至少为 THRESHOLD 的匹配项。
+    :param frame:       要搜索的图像（彩色）。
+    :param template:    彩色模板（BGR）。
+    :param threshold:   最小相关性阈值。
     :return:            超过 THRESHOLD 的匹配项数组。
     """
 
     if template.shape[0] > frame.shape[0] or template.shape[1] > frame.shape[1]:
         return []
-    gray = _frame_to_gray(frame)
-    return multi_match_gray(gray, template, threshold)
+
+    if frame.ndim == 2:
+        # 传入单通道时退回到灰度匹配
+        gray = frame
+        return multi_match_gray(gray, template if template.ndim == 2 else _frame_to_gray(template), threshold)
+
+    # 仅在 color 模式下使用三通道模板
+    if frame.ndim == 3 and template.ndim == 3:
+        # 确保frame和template的类型相同
+        if frame.dtype != template.dtype:
+            template = template.astype(frame.dtype)
+        # 确保frame和template的通道数相同
+        if frame.shape[2] != template.shape[2]:
+            if frame.shape[2] == 4:  # BGRA转BGR
+                frame = cv2.cvtColor(frame, cv2.COLOR_BGRA2BGR)
+            elif template.shape[2] == 4:  # BGRA转BGR
+                template = cv2.cvtColor(template, cv2.COLOR_BGRA2BGR)
+        result = cv2.matchTemplate(frame, template, cv2.TM_CCOEFF_NORMED)
+    else:
+        # 兼容单通道模板的情况
+        gray = _frame_to_gray(frame)
+        t_gray = template if template.ndim == 2 else _frame_to_gray(template)
+        return multi_match_gray(gray, t_gray, threshold)
+
+    locations = np.where(result >= threshold)
+    locations = list(zip(*locations[::-1]))
+    results = []
+    h, w = template.shape[:2]
+    for p in locations:
+        x = int(round(p[0] + w / 2))
+        y = int(round(p[1] + h / 2))
+        results.append((x, y))
+    return results
 
 
 def multi_match_gray(gray, template, threshold=0.95):
@@ -310,7 +342,7 @@ def enter_cash_shop():
         # 检查是否捕获到帧
         if hasattr(config, 'capture') and hasattr(config.capture, 'frame') and config.capture.frame is not None:
             # 尝试匹配商城图片
-            matches = multi_match(config.capture.frame, shop_template, threshold=0.8)
+            matches = multi_match_color(config.capture.frame, shop_template, threshold=0.8)
             if matches:
                 print("检测到商城界面，停止按 F5")
                 break
