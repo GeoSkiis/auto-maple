@@ -713,25 +713,8 @@ class SkillRotation(Command):
                 break
             # 如果有可用技能，选择一个使用
             if available:
-                # 优先处理终极无限1号和2号的交替释放
-                ultimate_skills = ['终极无限1号', '终极无限2号']
-                available_ultimate = [skill for skill in available if skill in ultimate_skills]
-                
-                if len(available_ultimate) > 1:
-                    # 检查是否都是初始状态（上次使用时间为0）
-                    all_initial = all(tracker.last_used.get(skill, 0) == 0 for skill in available_ultimate)
-                    if all_initial:
-                        # 初始状态下，只选择一个终极无限技能（默认选择1号）
-                        skill_id = '终极无限1号'
-                    else:
-                        # 如果两个终极无限都可用，选择上次使用时间更早的
-                        skill_id = min(available_ultimate, key=lambda skill: tracker.last_used.get(skill, 0))
-                elif available_ultimate:
-                    # 如果只有一个终极无限可用，使用它
-                    skill_id = available_ultimate[0]
-                else:
-                    # 否则随机选择一个其他技能
-                    skill_id = random.choice(available)
+                # 随机选择一个可用技能
+                skill_id = random.choice(available)
                 
                 press_count = 1
                 # 检查是否有指定的技能按键次数

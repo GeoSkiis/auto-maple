@@ -247,8 +247,7 @@ class Bot(Configurable):
                 # 执行箭头键序列
                 for arrow in solution:
                     press(arrow, 1, down_time=0.1)
-                time.sleep(1)
-                
+                time.sleep(0.2)     
                 # 检查符文buff是否出现，确认符文已被成功解决
                 buff_found = False
                 for _ in range(3):
@@ -279,7 +278,7 @@ class Bot(Configurable):
         
         # 如果没有找到解决方案且有符文帧，保存失败的检测并重置符文状态
         # if not solution_found and rune_frame is not None:
-        if not solution_found :
+        if not solution_found:
             print("检测到符文失败，尝试进入商城...")
             # self._save_failed_detection(rune_frame)
             utils.enter_cash_shop()  # 进入现金商店以重置状态

@@ -330,7 +330,7 @@ def exit_cash_shop():
     time.sleep(1)
     print("已发送 Enter")
     press("enter", 1, down_time=0.2)
-    time.sleep(7)
+    time.sleep(5)
     print("退出商城完成")
 
 
