@@ -185,8 +185,24 @@ def key_down(key):
     if key not in KEY_MAP.keys():
         print(f"Invalid keyboard input: '{key}'.")
     else:
+        # 检查是否需要打印按键信息
+        import src.common.config as config
+        print_press_msg = False
+        if hasattr(config.bot, 'command_book') and hasattr(config.bot.command_book, 'module'):
+            module = config.bot.command_book.module
+            print_press_msg = getattr(module, 'PRINT_PRESS_MSG', False)
+        
+        # 随机延迟
+        time.sleep(0.005 + 0.01 * random())
+        
+        if print_press_msg:
+            print(f"Key down: '{key}'")
+        
         x = Input(type=INPUT_KEYBOARD, ki=KeyboardInput(wVk=KEY_MAP[key]))
         user32.SendInput(1, ctypes.byref(x), ctypes.sizeof(x))
+        
+        # 随机延迟
+        time.sleep(0.005 + 0.01 * random())
 
 
 def key_up(key):
@@ -201,8 +217,24 @@ def key_up(key):
     if key not in KEY_MAP.keys():
         print(f"Invalid keyboard input: '{key}'.")
     else:
+        # 检查是否需要打印按键信息
+        import src.common.config as config
+        print_press_msg = False
+        if hasattr(config.bot, 'command_book') and hasattr(config.bot.command_book, 'module'):
+            module = config.bot.command_book.module
+            print_press_msg = getattr(module, 'PRINT_PRESS_MSG', False)
+        
+        # 随机延迟
+        time.sleep(0.005 + 0.01 * random())
+        
+        if print_press_msg:
+            print(f"Key up: '{key}'")
+        
         x = Input(type=INPUT_KEYBOARD, ki=KeyboardInput(wVk=KEY_MAP[key], dwFlags=KEYEVENTF_KEYUP))
         user32.SendInput(1, ctypes.byref(x), ctypes.sizeof(x))
+        
+        # 随机延迟
+        time.sleep(0.005 + 0.01 * random())
 
 
 @run_if_enabled
@@ -216,11 +248,21 @@ def press(key, n, down_time=0.05, up_time=0.1):
     :return:            None
     """
 
+    # 检查是否需要打印按键信息
+    import src.common.config as config
+    print_press_msg = False
+    if hasattr(config.bot, 'command_book') and hasattr(config.bot.command_book, 'module'):
+        module = config.bot.command_book.module
+        print_press_msg = getattr(module, 'PRINT_PRESS_MSG', False)
+    
     for _ in range(n):
         key_down(key)
         time.sleep(down_time * (0.8 + 0.4 * random()))
         key_up(key)
         time.sleep(up_time * (0.8 + 0.4 * random()))
+    
+    if print_press_msg:
+        print(f"Pressed '{key}' {n} times")
 
 
 @run_if_enabled
@@ -235,12 +277,31 @@ def click(position, button='left'):
     if button not in ['left', 'right']:
         print(f"'{button}' is not a valid mouse button.")
     else:
+        # 随机延迟
+        time.sleep(0.005 + 0.01 * random())
+        
         if button == 'left':
             down_event = win32con.MOUSEEVENTF_LEFTDOWN
             up_event = win32con.MOUSEEVENTF_LEFTUP
         else:
             down_event = win32con.MOUSEEVENTF_RIGHTDOWN
             up_event = win32con.MOUSEEVENTF_RIGHTUP
-        win32api.SetCursorPos(position)
-        win32api.mouse_event(down_event, position[0], position[1], 0, 0)
-        win32api.mouse_event(up_event, position[0], position[1], 0, 0)
+        
+        # 鼠标移动到位置时添加随机偏移
+        offset_x = int((random() - 0.5) * 3)
+        offset_y = int((random() - 0.5) * 3)
+        target_position = (position[0] + offset_x, position[1] + offset_y)
+        win32api.SetCursorPos(target_position)
+        
+        # 随机延迟
+        time.sleep(0.005 + 0.01 * random())
+        
+        win32api.mouse_event(down_event, target_position[0], target_position[1], 0, 0)
+        
+        # 随机延迟
+        time.sleep(0.005 + 0.01 * random())
+        
+        win32api.mouse_event(up_event, target_position[0], target_position[1], 0, 0)
+        
+        # 随机延迟
+        time.sleep(0.005 + 0.01 * random())

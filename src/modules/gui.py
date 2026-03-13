@@ -1,4 +1,4 @@
-"""User friendly GUI to interact with Auto Maple."""
+"""用户友好的 GUI，用于与 Auto Maple 交互。"""
 
 import os
 import time
@@ -10,8 +10,8 @@ from src.gui import Menu, View, Edit, Settings
 
 
 class GUI:
-    # Lower rate (10) reduces Tkinter canvas/itemconfig image leak over long runs (was 30)
-    DISPLAY_FRAME_RATE = 10
+    # 较低的速率（8）可减少长时间运行时 Tkinter 画布/项目配置的图像泄漏（原为 30）
+    DISPLAY_FRAME_RATE = 8
     RESOLUTIONS = {
         'DEFAULT': '800x800',
         'Edit': '1400x800'
@@ -25,12 +25,12 @@ class GUI:
         icon = tk.PhotoImage(file='assets/icon.png')
         self.root.iconphoto(False, icon)
         self.root.geometry(GUI.RESOLUTIONS['DEFAULT'])
-        self.root.resizable(False, False)
+        self.root.resizable(True, True)
 
-        # Initialize GUI variables
+        # 初始化 GUI 变量
         self.routine_var = tk.StringVar()
 
-        # Build the GUI
+        # 构建 GUI
         self.menu = Menu(self.root)
         self.root.config(menu=self.menu)
 
@@ -44,11 +44,11 @@ class GUI:
         self.navigation.bind('<<NotebookTabChanged>>', self._resize_window)
         self.root.focus()
 
-        # Restore previous session after a short delay (so window is shown)
+        # 短暂延迟后恢复上一个会话（以便窗口显示）
         self.root.after(100, self._restore_session)
 
     def _restore_session(self):
-        """Load command book, routine, and minimap from last session."""
+        """从上次会话加载命令书、例程和小地图。"""
         data = session.load()
         if not data:
             return
@@ -74,8 +74,8 @@ class GUI:
 
     def clear_routine_info(self):
         """
-        Clears information in various GUI elements regarding the current routine.
-        Does not clear Listboxes containing routine Components, as that is handled by Routine.
+        清除各种 GUI 元素中关于当前例程的信息。
+        不清除包含例程组件的列表框，因为这由 Routine 处理。
         """
 
         self.view.details.clear_info()
@@ -87,11 +87,11 @@ class GUI:
         self.edit.editor.reset()
 
     def _resize_window(self, e):
-        """Callback to resize entire Tkinter window every time a new Page is selected."""
+        """每次选择新页面时调整整个 Tkinter 窗口大小的回调函数。"""
 
         nav = e.widget
         curr_id = nav.select()
-        nav.nametowidget(curr_id).focus()      # Focus the current Tab
+        nav.nametowidget(curr_id).focus()     
         page = nav.tab(curr_id, 'text')
         if self.root.state() != 'zoomed':
             if page in GUI.RESOLUTIONS:
@@ -100,7 +100,7 @@ class GUI:
                 self.root.geometry(GUI.RESOLUTIONS['DEFAULT'])
 
     def start(self):
-        """Starts the GUI as well as any scheduled functions."""
+        """启动 GUI 以及任何计划的函数。"""
 
         display_thread = threading.Thread(target=self._display_minimap)
         display_thread.daemon = True
@@ -119,7 +119,7 @@ class GUI:
             time.sleep(delay)
 
     def _save_layout(self):
-        """Periodically saves the current Layout object."""
+        """定期保存当前的 Layout 对象。"""
 
         while True:
             if config.layout is not None and settings.record_layout:

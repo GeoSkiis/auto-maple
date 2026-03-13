@@ -6,12 +6,13 @@ from src.gui.interfaces import LabelFrame, Frame
 from src.common.interfaces import Configurable
 
 
-# Item buff 1-4: Never, 30 min, 60 min, 2 hrs. Familiar: Never, 1 hr
+# Item buff 1-4: Never, 16 min, 31 min, 61 min, 2 hrs 01 min. Familiar: Never, 1 hr
 ITEM_BUFF_OPTIONS = [
     ('Never', 0),
-    ('30 min', 1800),
-    ('60 min', 3600),
-    ('2 hrs', 7200),
+    ('16 min', 960),
+    ('31 min', 1860),
+    ('61 min', 3660),
+    ('2 hrs 01 min', 7260),
 ]
 FAMILIAR_OPTIONS = [
     ('Never', 0),

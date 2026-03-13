@@ -1,6 +1,6 @@
 """
-Tracks last-used time per skill and returns which skills are off cooldown.
-Used for "pick a random available skill" rotation at each waypoint.
+跟踪每个技能的上次使用时间并返回哪些技能已冷却完毕。
+用于在每个路径点进行"随机选择可用技能"的轮换。
 """
 import time
 import random
@@ -9,7 +9,7 @@ from typing import Optional
 
 class CooldownTracker:
     """
-    Each skill is identified by its key (str). cooldowns is a dict key -> cooldown_sec (0 = no cd).
+    每个技能由其键（str）标识。cooldowns 是一个字典，键 -> 冷却时间秒（0 = 无冷却）。
     """
 
     def __init__(self, cooldowns: dict[str, float]):
@@ -20,7 +20,7 @@ class CooldownTracker:
         self.last_used[key] = time.time()
 
     def get_available(self) -> list[str]:
-        """Return list of skill keys that are off cooldown."""
+        """返回已冷却完毕的技能键列表。"""
         now = time.time()
         out = []
         for key, cd in self.cooldowns.items():
@@ -29,7 +29,7 @@ class CooldownTracker:
         return out
 
     def pick_random_available(self) -> Optional[str]:
-        """Return one random skill key that is off cooldown, or None if none available."""
+        """返回一个随机的已冷却完毕的技能键，如果没有可用技能则返回 None。"""
         available = self.get_available()
         if not available:
             return None
