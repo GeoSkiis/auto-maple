@@ -6,23 +6,43 @@ from src.gui.interfaces import LabelFrame, Frame
 from src.common.interfaces import Configurable
 
 
-# Item buff 1-4: Never, 30 min, 60 min, 2 hrs. Familiar: Never, 1 hr
+# Item buff 1-4: Never, 10/15/20/30/60 min, 2 hrs. Familiar: Never, 1 hr
+# Timed options add 60s to the nominal duration (labels unchanged).
+_BUFF_INTERVAL_PAD = 60
 ITEM_BUFF_OPTIONS = [
     ('Never', 0),
-    ('30 min', 1800),
-    ('60 min', 3600),
-    ('2 hrs', 7200),
+    ('10 min', 600 + _BUFF_INTERVAL_PAD),
+    ('15 min', 900 + _BUFF_INTERVAL_PAD),
+    ('20 min', 1200 + _BUFF_INTERVAL_PAD),
+    ('30 min', 1800 + _BUFF_INTERVAL_PAD),
+    ('60 min', 3600 + _BUFF_INTERVAL_PAD),
+    ('2 hrs', 7200 + _BUFF_INTERVAL_PAD),
 ]
 FAMILIAR_OPTIONS = [
     ('Never', 0),
-    ('1 hr', 3600),
+    ('1 hr', 3600 + _BUFF_INTERVAL_PAD),
 ]
+
+# Saved configs from before the pad used exact second counts; map to padded values.
+_LEGACY_ITEM_BUFF_SEC = {
+    600: 600 + _BUFF_INTERVAL_PAD,
+    900: 900 + _BUFF_INTERVAL_PAD,
+    1200: 1200 + _BUFF_INTERVAL_PAD,
+    1800: 1800 + _BUFF_INTERVAL_PAD,
+    3600: 3600 + _BUFF_INTERVAL_PAD,
+    7200: 7200 + _BUFF_INTERVAL_PAD,
+}
+_LEGACY_FAMILIAR_1HR = 3600
 
 
 def _seconds_to_label(seconds, options):
     for label, sec in options:
         if sec == seconds:
             return label
+    if options is ITEM_BUFF_OPTIONS and seconds in _LEGACY_ITEM_BUFF_SEC:
+        return _seconds_to_label(_LEGACY_ITEM_BUFF_SEC[seconds], options)
+    if options is FAMILIAR_OPTIONS and seconds == _LEGACY_FAMILIAR_1HR:
+        return _seconds_to_label(_LEGACY_FAMILIAR_1HR + _BUFF_INTERVAL_PAD, options)
     return options[0][0]
 
 
@@ -87,7 +107,12 @@ class ItemBuffSettings(Configurable):
     }
 
     def get(self, key):
-        return self.config.get(key, self.DEFAULT_CONFIG.get(key))
+        v = self.config.get(key, self.DEFAULT_CONFIG.get(key))
+        if key.startswith('Item buff'):
+            return _LEGACY_ITEM_BUFF_SEC.get(v, v)
+        if key == 'Familiar pot' and v == _LEGACY_FAMILIAR_1HR:
+            return v + _BUFF_INTERVAL_PAD
+        return v
 
     def set(self, key, value):
         if key in self.DEFAULT_CONFIG:

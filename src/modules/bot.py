@@ -137,20 +137,55 @@ class Bot(Configurable):
         """
         global attempts
         print("attempt: ", str(attempts))
+        rune_align_tol = 0.05
+        max_align_attempts = 20
+        align_verify_need = 3
+        align_verify_sleep = 0.4
         move = self.command_book['move']
-        move(*self.rune_pos).execute()
         adjust = self.command_book['adjust']
-        adjust(*self.rune_pos).execute()
-        time.sleep(0.4)
-        adjust(*self.rune_pos).execute()
-        time.sleep(0.4)
-        press(self.config['Interact'], 1, down_time=0.2)        # Inherited from Configurable
+        move(*self.rune_pos).execute()
+        time.sleep(align_verify_sleep)
+        align_attempt = 0
+        consecutive_in_tol = 0
+        while align_attempt < max_align_attempts:
+            px, py = config.player_pos
+            rx, ry = self.rune_pos
+            in_tol = abs(px - rx) <= rune_align_tol and abs(py - ry) <= rune_align_tol
+            print(
+                f"[rune align] attempt {align_attempt + 1}/{max_align_attempts} "
+                f"player=({px:.4f},{py:.4f}) rune=({rx:.4f},{ry:.4f})"
+            )
+            if in_tol:
+                consecutive_in_tol += 1
+                print(
+                    f"[rune align] within tol={rune_align_tol} "
+                    f"verify {consecutive_in_tol}/{align_verify_need}"
+                )
+                if consecutive_in_tol >= align_verify_need:
+                    print(
+                        f"[rune align] stable after {align_verify_need} verifies "
+                        f"(loop attempt {align_attempt + 1})"
+                    )
+                    break
+                time.sleep(align_verify_sleep)
+            else:
+                if consecutive_in_tol:
+                    print("[rune align] left tolerance, resetting verify count")
+                consecutive_in_tol = 0
+                adjust(*self.rune_pos).execute()
+                time.sleep(align_verify_sleep)
+            align_attempt += 1
+        else:
+            print(f"[rune align] hit max attempts ({max_align_attempts}), proceeding to interact")
 
         print('\nSolving rune:')
         solution_found = False
         frame = None
         rune_frame = None
         for i in range(3):
+            time.sleep(0.4)
+            press(self.config['Interact'], 1, down_time=0.2)        # Inherited from Configurable
+            time.sleep(0.4)
             rune_frame = config.capture.frame
             solution = self.prediction_client.predict_from_frame(rune_frame)
 
