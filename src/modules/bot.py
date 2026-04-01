@@ -13,7 +13,7 @@ from src.routine import components
 from src.routine.routine import Routine
 from src.command_book.command_book import CommandBook
 from src.routine.components import Point
-from src.common.vkeys import press, click
+from src.common.vkeys import press, click, key_down, key_up
 from src.common.interfaces import Configurable
 
 
@@ -128,6 +128,16 @@ class Bot(Configurable):
             else:
                 time.sleep(0.01)
 
+    def _rune_rope_escape_jump_left(self):
+        """Hold left and jump once (e.g. unstuck from rope) using this class's jump binding."""
+        mod = getattr(self.command_book, 'module', None)
+        jump_key = getattr(getattr(mod, 'Key', None), 'JUMP', 'space') if mod else 'space'
+        key_down('left')
+        time.sleep(0.05)
+        press(jump_key, 1, down_time=0.08, up_time=0.12)
+        key_up('left')
+        time.sleep(0.25)
+
     @utils.run_if_enabled
     def _solve_rune(self):
         """
@@ -147,6 +157,10 @@ class Bot(Configurable):
         time.sleep(align_verify_sleep)
         align_attempt = 0
         consecutive_in_tol = 0
+        stuck_pos_eps = 0.004
+        stuck_same_need = 5
+        prev_align_pos = None
+        stuck_same_count = 0
         while align_attempt < max_align_attempts:
             px, py = config.player_pos
             rx, ry = self.rune_pos
@@ -155,6 +169,29 @@ class Bot(Configurable):
                 f"[rune align] attempt {align_attempt + 1}/{max_align_attempts} "
                 f"player=({px:.4f},{py:.4f}) rune=({rx:.4f},{ry:.4f})"
             )
+            if not in_tol:
+                if prev_align_pos is not None:
+                    if (abs(px - prev_align_pos[0]) <= stuck_pos_eps
+                            and abs(py - prev_align_pos[1]) <= stuck_pos_eps):
+                        stuck_same_count += 1
+                    else:
+                        stuck_same_count = 0
+                prev_align_pos = (px, py)
+                if stuck_same_count >= stuck_same_need:
+                    print(
+                        f"[rune align] no movement {stuck_same_need}x "
+                        f"(eps={stuck_pos_eps}), jump+left to escape rope"
+                    )
+                    self._rune_rope_escape_jump_left()
+                    stuck_same_count = 0
+                    prev_align_pos = None
+                    consecutive_in_tol = 0
+                    time.sleep(align_verify_sleep)
+                    align_attempt += 1
+                    continue
+            else:
+                stuck_same_count = 0
+                prev_align_pos = None
             if in_tol:
                 consecutive_in_tol += 1
                 print(
