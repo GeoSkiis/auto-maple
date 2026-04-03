@@ -147,7 +147,7 @@ class Bot(Configurable):
         """
         global attempts
         print("attempt: ", str(attempts))
-        rune_align_tol = 0.05
+        rune_align_tol = 0.04
         max_align_attempts = 20
         align_verify_need = 3
         align_verify_sleep = 0.4
