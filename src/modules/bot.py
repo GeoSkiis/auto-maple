@@ -138,15 +138,11 @@ class Bot(Configurable):
         key_up('left')
         time.sleep(0.25)
 
-    @utils.run_if_enabled
-    def _solve_rune(self):
+    def _rune_align_until_stable(self):
         """
-        Moves to the position of the rune and solves the arrow-key puzzle.
-        Uses the Arrow Prediction API (env: ARROW_API_URL, PROXY_SECRET).
-        :return:    None
+        Move/adjust until minimap position is within tolerance of the rune for several
+        consecutive checks. Handles rope stuck via jump+left.
         """
-        global attempts
-        print("attempt: ", str(attempts))
         rune_align_tol = 0.04
         max_align_attempts = 20
         align_verify_need = 3
@@ -214,6 +210,61 @@ class Bot(Configurable):
             align_attempt += 1
         else:
             print(f"[rune align] hit max attempts ({max_align_attempts}), proceeding to interact")
+
+    def _rune_try_climb_off_ladder_after_align(self):
+        """
+        Second-tier escape: if we verified near the rune but were on a ladder, holding up
+        will move the minimap position. Hold up until position stops changing, then caller
+        should re-align and re-verify.
+        """
+        stuck_pos_eps = 0.004
+        hold_initial = 1.0
+        stable_sleep = 0.15
+        stable_need = 3
+        max_extra_hold = 12.0
+
+        def _moved(a, b):
+            return max(abs(a[0] - b[0]), abs(a[1] - b[1])) > stuck_pos_eps
+
+        p0 = config.player_pos
+        key_down('up')
+        try:
+            time.sleep(hold_initial)
+            p1 = config.player_pos
+            if not _moved(p0, p1):
+                return False
+            print("[rune align] up-key moved player; holding up until climb stops")
+            prev = p1
+            stable = 0
+            t0 = time.time()
+            while time.time() - t0 < max_extra_hold:
+                time.sleep(stable_sleep)
+                cur = config.player_pos
+                if _moved(prev, cur):
+                    stable = 0
+                    prev = cur
+                else:
+                    stable += 1
+                    if stable >= stable_need:
+                        break
+            return True
+        finally:
+            key_up('up')
+            time.sleep(0.2)
+
+    @utils.run_if_enabled
+    def _solve_rune(self):
+        """
+        Moves to the position of the rune and solves the arrow-key puzzle.
+        Uses the Arrow Prediction API (env: ARROW_API_URL, PROXY_SECRET).
+        :return:    None
+        """
+        global attempts
+        print("attempt: ", str(attempts))
+        self._rune_align_until_stable()
+        if self._rune_try_climb_off_ladder_after_align():
+            print("[rune align] re-aligning after ladder climb-off")
+            self._rune_align_until_stable()
 
         print('\nSolving rune:')
         solution_found = False
