@@ -431,7 +431,8 @@ def _resolve_key(module, skill_id: str) -> str:
 class SkillRotation(Command):
     """
     Alternate between main-attack phase and skill phase for a duration.
-    - Main attack: hold main attack key + left or right for 1–3 sec (attack while moving).
+    - Main attack: hold main attack key + left or right for 1–3 sec (attack while moving),
+      unless the command book module defines callable `skill_rotation_main_attack(main_key, duration)`.
     - Skill phase: use one random skill that is off cooldown; if all on CD,
       keep attacking with direction until one is ready.
     Uses Key class for key lookup so user rebinds are respected.
@@ -452,6 +453,11 @@ class SkillRotation(Command):
             duration = utils.rand_float(0.2, max_sec)
         else:
             duration = utils.rand_float(0.05, max_sec)
+        module = getattr(getattr(config.bot, 'command_book', None), 'module', None)
+        custom_main = getattr(module, 'skill_rotation_main_attack', None) if module else None
+        if callable(custom_main):
+            custom_main(main_key, duration)
+            return
         direction = random.choice(('left', 'right'))
         key_down(direction)
         key_down(main_key)
