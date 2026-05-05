@@ -7,7 +7,7 @@ import cv2
 import threading
 import numpy as np
 from src.common import config, settings
-from src.common.vkeys import press
+from src.common.vkeys import click, press
 from src.common.decorators import run_if_enabled, run_if_disabled
 from random import random
 
@@ -21,6 +21,38 @@ def distance(a, b):
     """
 
     return math.sqrt((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2)
+
+
+CASH_SHOP_ENTRY_TEMPLATE = cv2.imread('assets/cash_shop_entry.png', 0)
+CASH_SHOP_EXIT_TEMPLATE = cv2.imread('assets/cash_shop_exit.png', 0)
+
+
+def _cash_shop_roi_enter(frame):
+    """Bottom 20% height, left 50% width (matches in-game HUD strip)."""
+    h, w = frame.shape[:2]
+    x0, x1 = 0, w // 2
+    y0, y1 = int(h * 0.8), h
+    return frame[y0:y1, x0:x1], (x0, y0)
+
+
+def _cash_shop_roi_exit(frame):
+    """Top-right corner: top 20% of height × rightmost 20% width (minimap UI)."""
+    h, w = frame.shape[:2]
+    x0, x1 = int(w * 0.8), w
+    y0, y1 = 0, int(h * 0.2)
+    return frame[y0:y1, x0:x1], (x0, y0)
+
+
+def _click_roi_match_screen(matches, roi_origin):
+    """Matches are ROI-local centers from multi_match_gray; click in screen coordinates."""
+    if not matches or not getattr(config, 'capture', None):
+        return
+    cx_roi, cy_roi = matches[0]
+    ox, oy = roi_origin
+    fx = cx_roi + ox
+    fy = cy_roi + oy
+    win = config.capture.window
+    click((int(round(fx + win['left'])), int(round(fy + win['top']))))
 
 
 def separate_args(arguments):
@@ -289,25 +321,163 @@ class Async(threading.Thread):
         return f
 
 
-def enter_cash_shop(repeat: int = 10):
+def enter_cash_shop(interval_s=1.0, threshold=0.85, max_wait_s=120.0):
     """
-    Send F5 + Enter repeatedly to open the cash shop.
-    :param repeat: Number of F5+Enter cycles (default 10).
+    Match ``assets/cash_shop_entry.png`` in the bottom-left HUD ROI (bottom 20% of the
+    screen, left 50% columns). Click the template center every INTERVAL_S while it is
+    still visible until it disappears (shop opened).
+
+    If the sprite never appears, stops after MAX_WAIT_S to avoid blocking forever.
+
+    :param interval_s:  Seconds between click attempts while the entry icon matches.
+    :param threshold:   Normalized TM_CCOEFF_NORMED minimum for ``multi_match_gray``.
+    :param max_wait_s:  Stop the loop after this many seconds regardless of outcome.
     """
-    for _ in range(repeat):
-        press("f5", 1, down_time=0.1)
-        press("enter", 1, down_time=0.1)
-        time.sleep(1)
+    if CASH_SHOP_ENTRY_TEMPLATE is None:
+        print('[enter_cash_shop] missing assets/cash_shop_entry.png')
+        return
+
+    print(
+        f'[enter_cash_shop] start threshold={threshold} interval_s={interval_s} max_wait_s={max_wait_s}'
+    )
+    tmpl = CASH_SHOP_ENTRY_TEMPLATE
+    deadline = time.time() + max_wait_s
+    saw_match = False
+    entry_clicks = 0
+    no_frame_streak = 0
+    scan_loops = 0
+    while time.time() < deadline:
+        scan_loops += 1
+        cap = getattr(config, 'capture', None)
+        frame = cap.frame if cap else None
+        if frame is None:
+            no_frame_streak += 1
+            if no_frame_streak == 1 or no_frame_streak % 15 == 0:
+                why = 'no capture object' if cap is None else 'capture.frame is None'
+                print(f'[enter_cash_shop] waiting for frame ({why}, streak={no_frame_streak})')
+            time.sleep(interval_s)
+            continue
+        no_frame_streak = 0
+
+        roi, origin = _cash_shop_roi_enter(frame)
+        gray = _frame_to_gray(roi)
+        matches = multi_match_gray(gray, tmpl, threshold=threshold)
+        if matches:
+            if not saw_match:
+                print(
+                    f'[enter_cash_shop] entry HUD matched ({len(matches)} hit(s)); ROI origin={origin}, '
+                    f'roi_gray shape={gray.shape}'
+                )
+            saw_match = True
+            entry_clicks += 1
+            print(f'[enter_cash_shop] clicking entry icon (attempt {entry_clicks})')
+            _click_roi_match_screen(matches, origin)
+            time.sleep(interval_s)
+        elif saw_match:
+            print(
+                f'[enter_cash_shop] entry icon gone after {entry_clicks} click(s); assuming shop opened '
+                f'({scan_loops} scan loops)'
+            )
+            break
+        else:
+            if scan_loops == 1 or scan_loops % 20 == 0:
+                print(
+                    f'[enter_cash_shop] scanning for entry HUD (loop {scan_loops}, '
+                    f'{deadline - time.time():.0f}s left on deadline)'
+                )
+            time.sleep(interval_s)
+    else:
+        if saw_match:
+            print(
+                f'[enter_cash_shop] timed out after max_wait_s={max_wait_s}; '
+                f'icon may still be visible ({entry_clicks} clicks so far)'
+            )
+        else:
+            print(
+                f'[enter_cash_shop] timed out after max_wait_s={max_wait_s}; '
+                'never matched entry HUD (check template / ROI / resolution)'
+            )
+
+    print('[enter_cash_shop] sleeping 10s before return')
+    time.sleep(10)
 
 
-def exit_cash_shop():
-    """Send Esc/Enter sequence to leave the cash shop and wait for loading."""
-    time.sleep(5)
-    press("esc", 1, down_time=0.1)
-    time.sleep(1)
-    press("esc", 1, down_time=0.1)
-    time.sleep(1)
-    press("enter", 1, down_time=0.1)
+def exit_cash_shop(interval_s=1.0, threshold=0.85, max_wait_s=120.0):
+    """
+    Leave the cash shop by matching grayscale ``assets/cash_shop_exit.png`` in the live
+    map frame ROI (top 20% height, rightmost 20% width), clicking the center every
+    INTERVAL_S while visible until the sprite is gone.
+
+    :param interval_s:  Seconds between attempts while exit UI still matches.
+    :param threshold:   Normalized correlation threshold for matching.
+    :param max_wait_s:  Stop after this many seconds regardless.
+    """
+    if CASH_SHOP_EXIT_TEMPLATE is None:
+        print('[exit_cash_shop] missing assets/cash_shop_exit.png')
+        return
+
+    print(
+        f'[exit_cash_shop] start threshold={threshold} interval_s={interval_s} max_wait_s={max_wait_s}'
+    )
+    tmpl = CASH_SHOP_EXIT_TEMPLATE
+    deadline = time.time() + max_wait_s
+    saw_match = False
+    exit_clicks = 0
+    no_frame_streak = 0
+    scan_loops = 0
+    while time.time() < deadline:
+        scan_loops += 1
+        cap = getattr(config, 'capture', None)
+        frame = cap.frame if cap else None
+        if frame is None:
+            no_frame_streak += 1
+            if no_frame_streak == 1 or no_frame_streak % 15 == 0:
+                why = 'no capture object' if cap is None else 'capture.frame is None'
+                print(f'[exit_cash_shop] waiting for frame ({why}, streak={no_frame_streak})')
+            time.sleep(interval_s)
+            continue
+        no_frame_streak = 0
+
+        roi, origin = _cash_shop_roi_exit(frame)
+        gray = _frame_to_gray(roi)
+        matches = multi_match_gray(gray, tmpl, threshold=threshold)
+        if matches:
+            if not saw_match:
+                print(
+                    f'[exit_cash_shop] exit UI matched ({len(matches)} hit(s)); ROI origin={origin}, '
+                    f'roi_gray shape={gray.shape}'
+                )
+            saw_match = True
+            exit_clicks += 1
+            print(f'[exit_cash_shop] clicking exit (attempt {exit_clicks})')
+            _click_roi_match_screen(matches, origin)
+            time.sleep(interval_s)
+        elif saw_match:
+            print(
+                f'[exit_cash_shop] exit UI gone after {exit_clicks} click(s); assuming left shop '
+                f'({scan_loops} scan loops)'
+            )
+            break
+        else:
+            if scan_loops == 1 or scan_loops % 20 == 0:
+                print(
+                    f'[exit_cash_shop] scanning for exit UI (loop {scan_loops}, '
+                    f'{deadline - time.time():.0f}s left on deadline)'
+                )
+            time.sleep(interval_s)
+    else:
+        if saw_match:
+            print(
+                f'[exit_cash_shop] timed out after max_wait_s={max_wait_s}; '
+                f'exit control may still be visible ({exit_clicks} clicks so far)'
+            )
+        else:
+            print(
+                f'[exit_cash_shop] timed out after max_wait_s={max_wait_s}; '
+                'never matched exit template (check template / ROI / resolution)'
+            )
+
+    print('[exit_cash_shop] sleeping 5s before return')
     time.sleep(5)
 
 

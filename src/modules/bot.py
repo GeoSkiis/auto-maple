@@ -114,19 +114,38 @@ class Bot(Configurable):
                         time.sleep(2)
                         last_familiar_buff = now
 
+                # Rune interrupt: nearest waypoint replaces current index so we solve without waiting
+                # on the next random step to match rune_closest_pos.
+                if self.rune_active:
+                    rune_i = self._routine_index_closest_to_rune()
+                    if rune_i is not None:
+                        config.routine.index = rune_i
+
                 # Highlight the current Point
                 config.gui.view.routine.select(config.routine.index)
                 config.gui.view.details.display_info(config.routine.index)
 
-                # Execute next Point in the routine
                 element = config.routine[config.routine.index]
-                if self.rune_active and isinstance(element, Point) \
-                        and element.location == self.rune_closest_pos:
+                if self.rune_active and isinstance(element, Point):
                     self._solve_rune()
                 element.execute()
                 config.routine.step()
             else:
                 time.sleep(0.01)
+
+    def _routine_index_closest_to_rune(self):
+        """Routine index of the Point nearest to rune minimap coords; None if none."""
+        seq = getattr(config.routine, 'sequence', None) or []
+        rp = self.rune_pos
+        best_i = None
+        best_d = float('inf')
+        for i, comp in enumerate(seq):
+            if isinstance(comp, Point):
+                d = utils.distance(rp, comp.location)
+                if d < best_d:
+                    best_d = d
+                    best_i = i
+        return best_i
 
     def _rune_rope_escape_jump_left(self):
         """Hold left and jump once (e.g. unstuck from rope) using this class's jump binding."""
@@ -283,7 +302,7 @@ class Bot(Configurable):
                 print('Solution found, entering result')
                 for arrow in solution:
                     press(arrow, 1, down_time=0.1)
-                time.sleep(1)
+                time.sleep(3)
                 for _ in range(3):
                     time.sleep(0.3)
                     frame = config.capture.frame
