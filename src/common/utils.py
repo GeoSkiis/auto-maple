@@ -323,11 +323,12 @@ class Async(threading.Thread):
 
 def enter_cash_shop(interval_s=1.0, threshold=0.85, max_wait_s=120.0):
     """
-    Match ``assets/cash_shop_entry.png`` in the bottom-left HUD ROI (bottom 20% of the
-    screen, left 50% columns). Click the template center every INTERVAL_S while it is
-    still visible until it disappears (shop opened).
+    Open the cash shop by matching ``assets/cash_shop_entry.png`` in the bottom-left HUD
+    ROI and clicking until **confirmed inside** via ``assets/cash_shop_exit.png`` in the
+    top-right ROI (same template/ROI as ``exit_cash_shop``).
 
-    If the sprite never appears, stops after MAX_WAIT_S to avoid blocking forever.
+    We do **not** treat "entry HUD stopped matching" as success: the mouse can block the
+    icon after a click while the shop is still closed.
 
     :param interval_s:  Seconds between click attempts while the entry icon matches.
     :param threshold:   Normalized TM_CCOEFF_NORMED minimum for ``multi_match_gray``.
@@ -336,13 +337,17 @@ def enter_cash_shop(interval_s=1.0, threshold=0.85, max_wait_s=120.0):
     if CASH_SHOP_ENTRY_TEMPLATE is None:
         print('[enter_cash_shop] missing assets/cash_shop_entry.png')
         return
+    if CASH_SHOP_EXIT_TEMPLATE is None:
+        print('[enter_cash_shop] missing assets/cash_shop_exit.png (needed to confirm inside shop)')
+        return
 
     print(
         f'[enter_cash_shop] start threshold={threshold} interval_s={interval_s} max_wait_s={max_wait_s}'
     )
-    tmpl = CASH_SHOP_ENTRY_TEMPLATE
+    tmpl_entry = CASH_SHOP_ENTRY_TEMPLATE
+    tmpl_exit = CASH_SHOP_EXIT_TEMPLATE
     deadline = time.time() + max_wait_s
-    saw_match = False
+    saw_entry_match = False
     entry_clicks = 0
     no_frame_streak = 0
     scan_loops = 0
@@ -359,38 +364,42 @@ def enter_cash_shop(interval_s=1.0, threshold=0.85, max_wait_s=120.0):
             continue
         no_frame_streak = 0
 
+        roi_exit, _ = _cash_shop_roi_exit(frame)
+        gray_exit = _frame_to_gray(roi_exit)
+        exit_matches = multi_match_gray(gray_exit, tmpl_exit, threshold=threshold)
+        if exit_matches:
+            print(
+                f'[enter_cash_shop] exit UI visible in top-right — confirmed inside shop '
+                f'({scan_loops} loops, {entry_clicks} entry clicks)'
+            )
+            break
+
         roi, origin = _cash_shop_roi_enter(frame)
         gray = _frame_to_gray(roi)
-        matches = multi_match_gray(gray, tmpl, threshold=threshold)
+        matches = multi_match_gray(gray, tmpl_entry, threshold=threshold)
         if matches:
-            if not saw_match:
+            if not saw_entry_match:
                 print(
                     f'[enter_cash_shop] entry HUD matched ({len(matches)} hit(s)); ROI origin={origin}, '
                     f'roi_gray shape={gray.shape}'
                 )
-            saw_match = True
+            saw_entry_match = True
             entry_clicks += 1
             print(f'[enter_cash_shop] clicking entry icon (attempt {entry_clicks})')
             _click_roi_match_screen(matches, origin)
             time.sleep(interval_s)
-        elif saw_match:
-            print(
-                f'[enter_cash_shop] entry icon gone after {entry_clicks} click(s); assuming shop opened '
-                f'({scan_loops} scan loops)'
-            )
-            break
         else:
             if scan_loops == 1 or scan_loops % 20 == 0:
                 print(
-                    f'[enter_cash_shop] scanning for entry HUD (loop {scan_loops}, '
-                    f'{deadline - time.time():.0f}s left on deadline)'
+                    f'[enter_cash_shop] no entry match yet / waiting for exit UI (loop {scan_loops}, '
+                    f'{max(0.0, deadline - time.time()):.0f}s left)'
                 )
             time.sleep(interval_s)
     else:
-        if saw_match:
+        if saw_entry_match:
             print(
                 f'[enter_cash_shop] timed out after max_wait_s={max_wait_s}; '
-                f'icon may still be visible ({entry_clicks} clicks so far)'
+                f'clicked entry {entry_clicks}x but exit UI never appeared (still not in shop?)'
             )
         else:
             print(
