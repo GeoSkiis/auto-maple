@@ -175,10 +175,10 @@ class Notifier:
                     if module and hasattr(module, 'Key'):
                         Key = module.Key
                         if getattr(Key, 'ORIGIN', None) and getattr(Key, 'ASCENT', None):
-                            time.sleep(7)
-                            press(Key.ORIGIN, 3)
-                            time.sleep(5)
+                            time.sleep(9)
                             press(Key.ASCENT, 3)
+                            time.sleep(5)
+                            press(Key.ORIGIN, 3)
                             print("Origin and Ascent used.")
                         else:
                             print("Command book has no ORIGIN/ASCENT keys.")
