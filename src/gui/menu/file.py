@@ -106,8 +106,6 @@ class File(MenuBarItem):
                                     filetypes=[('*.py', '*.py')])
         if file_path:
             config.bot.load_commands(file_path)
-            if config.bot.command_book is not None:
-                session.save(command_book_path=file_path)
 
 
 def get_routines_dir():

@@ -299,12 +299,11 @@ class Move(Command):
                         else:
                             key = 'right'
                         self._new_direction(key)
+                        cb_module = getattr(getattr(config.bot, 'command_book', None), 'module', None)
+                        skip_random_jump = getattr(cb_module, 'SKIP_MOVE_RANDOM_JUMP', False)
                         # Occasional jump during horizontal movement to avoid getting stuck on ladders
-                        if random.random() < 0.3:
-                            jump_key = getattr(
-                                getattr(getattr(config.bot, 'command_book', None), 'module', None), 'Key', None
-                            )
-                            jump_key = getattr(jump_key, 'JUMP', 'space') if jump_key else 'space'
+                        if not skip_random_jump and random.random() < 0.3:
+                            jump_key = getattr(getattr(cb_module, 'Key', None), 'JUMP', 'space') if cb_module else 'space'
                             press(jump_key, 1, down_time=0.05, up_time=0.05)
                             time.sleep(utils.rand_float(0.05, 0.12))
                         step(key, point)
@@ -319,11 +318,16 @@ class Move(Command):
                     if abs(d_y) > settings.move_tolerance / math.sqrt(2):
                         if d_y < 0:
                             # Go up: rope lift only (step('up') uses rope lift in command book, no up key)
-                            if self.prev_direction:
-                                key_up(self.prev_direction)
-                                self.prev_direction = ''
-                            key_up('up')
-                            step('up', point)
+                            skip_rope = (
+                                getattr(config, 'rune_aligning', False)
+                                and abs(d_y) < config.RUNE_VERTICAL_ROPE_MIN
+                            )
+                            if not skip_rope:
+                                if self.prev_direction:
+                                    key_up(self.prev_direction)
+                                    self.prev_direction = ''
+                                key_up('up')
+                                step('up', point)
                         else:
                             key = 'down'
                             self._new_direction(key)

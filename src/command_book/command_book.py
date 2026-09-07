@@ -102,7 +102,6 @@ class CommandBook(Configurable):
             components.step = new_step
             config.gui.menu.file.enable_routine_state()
             config.gui.view.status.set_cb(basename(file))
-            config.routine.clear()
             print(f" ~  Successfully loaded command book '{self.name}'")
             return new_cb, module
         else:

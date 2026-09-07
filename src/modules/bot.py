@@ -128,6 +128,8 @@ class Bot(Configurable):
                 element = config.routine[config.routine.index]
                 if self.rune_active and isinstance(element, Point):
                     self._solve_rune()
+                    if not config.enabled:
+                        continue
                 element.execute()
                 config.routine.step()
             else:
@@ -147,6 +149,25 @@ class Bot(Configurable):
                     best_i = i
         return best_i
 
+    def _rune_should_continue(self):
+        return config.enabled and self.rune_active
+
+    def abort_rune(self):
+        """Stop rune alignment/solving immediately and release movement keys."""
+        self.rune_active = False
+        config.rune_aligning = False
+        for key in ('left', 'right', 'up', 'down'):
+            key_up(key)
+
+    def _rune_interruptible_sleep(self, duration):
+        """Sleep in short slices so Insert (pause) can abort rune logic promptly."""
+        end = time.time() + duration
+        while time.time() < end:
+            if not self._rune_should_continue():
+                return False
+            time.sleep(min(0.05, max(0.0, end - time.time())))
+        return True
+
     def _rune_rope_escape_jump_left(self):
         """Hold left and jump once (e.g. unstuck from rope) using this class's jump binding."""
         mod = getattr(self.command_book, 'module', None)
@@ -156,6 +177,70 @@ class Bot(Configurable):
         press(jump_key, 1, down_time=0.08, up_time=0.12)
         key_up('left')
         time.sleep(0.25)
+
+    def _rune_movement_keys(self):
+        mod = getattr(self.command_book, 'module', None)
+        key_cls = getattr(mod, 'Key', None) if mod else None
+        jump_key = getattr(key_cls, 'JUMP', 'space') if key_cls else 'space'
+        rope_key = getattr(key_cls, 'ROPE_LIFT', 'c') if key_cls else 'c'
+        return jump_key, rope_key
+
+    def _rune_fine_adjust(self, tol=0.04):
+        """
+        Fine-tune position at a rune without generic Adjust (which rope-lifts on any tiny Y error).
+        Horizontal first; downward = down-jump; upward = rope lift only for large Y gaps.
+        """
+        if not self._rune_should_continue():
+            return
+        rx, ry = self.rune_pos
+        px, py = config.player_pos
+        dx = rx - px
+        dy = ry - py
+        jump_key, rope_key = self._rune_movement_keys()
+        rope_min = config.RUNE_VERTICAL_ROPE_MIN
+
+        if abs(dx) > tol:
+            direction = 'left' if dx < 0 else 'right'
+            print(f"[rune align] horizontal nudge {direction} (dx={dx:.4f})")
+            key_down(direction)
+            time.sleep(0.05)
+            press(jump_key, 1, down_time=0.05, up_time=0.05)
+            for _ in range(15):
+                if not self._rune_should_continue():
+                    break
+                if abs(rx - config.player_pos[0]) <= tol:
+                    break
+                time.sleep(0.05)
+            key_up(direction)
+            time.sleep(0.1)
+            return
+
+        if abs(dy) <= tol:
+            return
+
+        if not self._rune_should_continue():
+            return
+
+        if dy > 0:
+            print(f"[rune align] downward correction (dy={dy:.4f})")
+            key_down('down')
+            time.sleep(0.05)
+            press(jump_key, 2, down_time=0.08, up_time=0.1)
+            key_up('down')
+            self._rune_interruptible_sleep(0.25)
+            return
+
+        if abs(dy) < rope_min:
+            print(
+                f"[rune align] skip rope lift (|dy|={abs(dy):.4f} < {rope_min}), jump only"
+            )
+            press(jump_key, 1, down_time=0.05, up_time=0.08)
+            self._rune_interruptible_sleep(0.3)
+            return
+
+        print(f"[rune align] rope lift for large vertical gap (dy={dy:.4f})")
+        press(rope_key, 1)
+        self._rune_interruptible_sleep(2.0 if abs(dy) > 0.12 else 1.5)
 
     def _rune_align_until_stable(self):
         """
@@ -167,68 +252,80 @@ class Bot(Configurable):
         align_verify_need = 3
         align_verify_sleep = 0.4
         move = self.command_book['move']
-        adjust = self.command_book['adjust']
-        move(*self.rune_pos).execute()
-        time.sleep(align_verify_sleep)
-        align_attempt = 0
-        consecutive_in_tol = 0
-        stuck_pos_eps = 0.004
-        stuck_same_need = 5
-        prev_align_pos = None
-        stuck_same_count = 0
-        while align_attempt < max_align_attempts:
-            px, py = config.player_pos
-            rx, ry = self.rune_pos
-            in_tol = abs(px - rx) <= rune_align_tol and abs(py - ry) <= rune_align_tol
-            print(
-                f"[rune align] attempt {align_attempt + 1}/{max_align_attempts} "
-                f"player=({px:.4f},{py:.4f}) rune=({rx:.4f},{ry:.4f})"
-            )
-            if not in_tol:
-                if prev_align_pos is not None:
-                    if (abs(px - prev_align_pos[0]) <= stuck_pos_eps
-                            and abs(py - prev_align_pos[1]) <= stuck_pos_eps):
-                        stuck_same_count += 1
-                    else:
+        config.rune_aligning = True
+        try:
+            if not self._rune_should_continue():
+                return
+            move(*self.rune_pos).execute()
+            if not self._rune_interruptible_sleep(align_verify_sleep):
+                return
+            align_attempt = 0
+            consecutive_in_tol = 0
+            stuck_pos_eps = 0.004
+            stuck_same_need = 5
+            prev_align_pos = None
+            stuck_same_count = 0
+            while align_attempt < max_align_attempts:
+                if not self._rune_should_continue():
+                    print("[rune align] aborted (bot paused)")
+                    return
+                px, py = config.player_pos
+                rx, ry = self.rune_pos
+                in_tol = abs(px - rx) <= rune_align_tol and abs(py - ry) <= rune_align_tol
+                print(
+                    f"[rune align] attempt {align_attempt + 1}/{max_align_attempts} "
+                    f"player=({px:.4f},{py:.4f}) rune=({rx:.4f},{ry:.4f})"
+                )
+                if not in_tol:
+                    if prev_align_pos is not None:
+                        if (abs(px - prev_align_pos[0]) <= stuck_pos_eps
+                                and abs(py - prev_align_pos[1]) <= stuck_pos_eps):
+                            stuck_same_count += 1
+                        else:
+                            stuck_same_count = 0
+                    prev_align_pos = (px, py)
+                    if stuck_same_count >= stuck_same_need:
+                        print(
+                            f"[rune align] no movement {stuck_same_need}x "
+                            f"(eps={stuck_pos_eps}), jump+left to escape rope"
+                        )
+                        self._rune_rope_escape_jump_left()
                         stuck_same_count = 0
-                prev_align_pos = (px, py)
-                if stuck_same_count >= stuck_same_need:
-                    print(
-                        f"[rune align] no movement {stuck_same_need}x "
-                        f"(eps={stuck_pos_eps}), jump+left to escape rope"
-                    )
-                    self._rune_rope_escape_jump_left()
+                        prev_align_pos = None
+                        consecutive_in_tol = 0
+                        if not self._rune_interruptible_sleep(align_verify_sleep):
+                            return
+                        align_attempt += 1
+                        continue
+                else:
                     stuck_same_count = 0
                     prev_align_pos = None
-                    consecutive_in_tol = 0
-                    time.sleep(align_verify_sleep)
-                    align_attempt += 1
-                    continue
-            else:
-                stuck_same_count = 0
-                prev_align_pos = None
-            if in_tol:
-                consecutive_in_tol += 1
-                print(
-                    f"[rune align] within tol={rune_align_tol} "
-                    f"verify {consecutive_in_tol}/{align_verify_need}"
-                )
-                if consecutive_in_tol >= align_verify_need:
+                if in_tol:
+                    consecutive_in_tol += 1
                     print(
-                        f"[rune align] stable after {align_verify_need} verifies "
-                        f"(loop attempt {align_attempt + 1})"
+                        f"[rune align] within tol={rune_align_tol} "
+                        f"verify {consecutive_in_tol}/{align_verify_need}"
                     )
-                    break
-                time.sleep(align_verify_sleep)
+                    if consecutive_in_tol >= align_verify_need:
+                        print(
+                            f"[rune align] stable after {align_verify_need} verifies "
+                            f"(loop attempt {align_attempt + 1})"
+                        )
+                        break
+                    if not self._rune_interruptible_sleep(align_verify_sleep):
+                        return
+                else:
+                    if consecutive_in_tol:
+                        print("[rune align] left tolerance, resetting verify count")
+                    consecutive_in_tol = 0
+                    self._rune_fine_adjust(tol=rune_align_tol)
+                    if not self._rune_interruptible_sleep(align_verify_sleep):
+                        return
+                align_attempt += 1
             else:
-                if consecutive_in_tol:
-                    print("[rune align] left tolerance, resetting verify count")
-                consecutive_in_tol = 0
-                adjust(*self.rune_pos).execute()
-                time.sleep(align_verify_sleep)
-            align_attempt += 1
-        else:
-            print(f"[rune align] hit max attempts ({max_align_attempts}), proceeding to interact")
+                print(f"[rune align] hit max attempts ({max_align_attempts}), proceeding to interact")
+        finally:
+            config.rune_aligning = False
 
     def _rune_try_climb_off_ladder_after_align(self):
         """
@@ -236,6 +333,8 @@ class Bot(Configurable):
         will move the minimap position. Hold up until position stops changing, then caller
         should re-align and re-verify.
         """
+        if not self._rune_should_continue():
+            return False
         stuck_pos_eps = 0.004
         hold_initial = 1.0
         stable_sleep = 0.15
@@ -248,7 +347,8 @@ class Bot(Configurable):
         p0 = config.player_pos
         key_down('up')
         try:
-            time.sleep(hold_initial)
+            if not self._rune_interruptible_sleep(hold_initial):
+                return False
             p1 = config.player_pos
             if not _moved(p0, p1):
                 return False
@@ -257,7 +357,10 @@ class Bot(Configurable):
             stable = 0
             t0 = time.time()
             while time.time() - t0 < max_extra_hold:
-                time.sleep(stable_sleep)
+                if not self._rune_should_continue():
+                    return False
+                if not self._rune_interruptible_sleep(stable_sleep):
+                    return False
                 cur = config.player_pos
                 if _moved(prev, cur):
                     stable = 0
@@ -279,20 +382,30 @@ class Bot(Configurable):
         :return:    None
         """
         global attempts
+        if not self._rune_should_continue():
+            return
         print("attempt: ", str(attempts))
         self._rune_align_until_stable()
+        if not self._rune_should_continue():
+            return
         if self._rune_try_climb_off_ladder_after_align():
             print("[rune align] re-aligning after ladder climb-off")
             self._rune_align_until_stable()
+        if not self._rune_should_continue():
+            return
 
         print('\nSolving rune:')
         solution_found = False
         frame = None
         rune_frame = None
         for i in range(3):
-            time.sleep(0.4)
+            if not self._rune_should_continue():
+                return
+            if not self._rune_interruptible_sleep(0.4):
+                return
             press(self.config['Interact'], 1, down_time=0.2)        # Inherited from Configurable
-            time.sleep(0.4)
+            if not self._rune_interruptible_sleep(0.4):
+                return
             rune_frame = config.capture.frame
             solution = self.prediction_client.predict_from_frame(rune_frame)
 
@@ -301,10 +414,16 @@ class Bot(Configurable):
                 print(', '.join(solution))
                 print('Solution found, entering result')
                 for arrow in solution:
+                    if not self._rune_should_continue():
+                        return
                     press(arrow, 1, down_time=0.1)
-                time.sleep(3)
+                if not self._rune_interruptible_sleep(3):
+                    return
                 for _ in range(3):
-                    time.sleep(0.3)
+                    if not self._rune_should_continue():
+                        return
+                    if not self._rune_interruptible_sleep(0.3):
+                        return
                     frame = config.capture.frame
                     rune_buff = utils.multi_match(frame[:frame.shape[0] // 8, :],
                                                  RUNE_BUFF_TEMPLATE,
@@ -320,6 +439,8 @@ class Bot(Configurable):
                         solution_found = True
                 self.rune_active = False
                 break
+        if not self._rune_should_continue():
+            return
         if not solution_found and frame is not None:
             self._save_failed_detection(frame)
         if not solution_found and rune_frame is not None:
@@ -367,6 +488,12 @@ class Bot(Configurable):
     def load_commands(self, file):
         try:
             self.command_book = CommandBook(file)
+            auto_path = config.routine.load_auto_for_command_book(self.command_book.name)
+            from src.common import session
+            session.save(
+                command_book_path=os.path.abspath(file),
+                routine_path=os.path.abspath(auto_path),
+            )
             config.gui.settings.update_class_bindings()
         except ValueError:
             pass    # TODO: UI warning popup, say check cmd for errors

@@ -48,23 +48,17 @@ class GUI:
         self.root.after(100, self._restore_session)
 
     def _restore_session(self):
-        """Load command book, routine, and minimap from last session."""
+        """Load command book (and its auto.csv), plus minimap from last session."""
         data = session.load()
         if not data:
             return
         cb_path = data.get('command_book', '')
-        routine_path = data.get('routine', '')
         minimap_path = data.get('minimap', '')
         if cb_path and os.path.isfile(cb_path):
             try:
                 config.bot.load_commands(cb_path)
-            except Exception:
-                pass
-        if routine_path and os.path.isfile(routine_path) and config.bot.command_book is not None:
-            try:
-                config.routine.load(routine_path)
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"\n[!] Session restore: could not load command book '{cb_path}': {e}")
         if minimap_path and os.path.isfile(minimap_path):
             config.selected_minimap_path = minimap_path
             config.gui.view.status.set_minimap(os.path.basename(minimap_path))

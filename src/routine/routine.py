@@ -214,6 +214,23 @@ class Routine:
 
         config.gui.clear_routine_info()
 
+    @staticmethod
+    def auto_routine_path(command_book_name):
+        """Return resources/routines/{command_book_name}/auto.csv, creating the folder if needed."""
+        routines_dir = os.path.join(config.RESOURCES_DIR, 'routines', command_book_name)
+        os.makedirs(routines_dir, exist_ok=True)
+        return os.path.join(routines_dir, 'auto.csv')
+
+    def load_auto_for_command_book(self, command_book_name):
+        """Ensure auto.csv exists for this command book and load it."""
+        auto_path = self.auto_routine_path(command_book_name)
+        if not os.path.isfile(auto_path):
+            with open(auto_path, 'w'):
+                pass
+            print(f"[~] Created blank auto routine at '{auto_path}'")
+        self.load(auto_path)
+        return auto_path
+
     def load(self, file=None):
         """
         Attempts to load FILE into a sequence of Components. If no file path is provided, attempts to

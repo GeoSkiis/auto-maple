@@ -53,8 +53,15 @@ SKULL_DEATH_HP_BAR_TEMPLATE = cv2.imread('assets/skull_death_hp_bar.png', 0)
 # Skull Death skull
 SKULL_DEATH_SKULL_TEMPLATE = cv2.imread('assets/skull_death_skull.png', 0)
 
-# Lie detector
+# Lie detector (full + split top/bottom for partial UI visibility)
 LIE_DETECTOR_TEMPLATE = cv2.imread('assets/lie_detector_template.png', 0)
+LIE_DETECTOR_TEMPLATE_TOP = cv2.imread('assets/lie_detector_template_top.png', 0)
+LIE_DETECTOR_TEMPLATE_BOTTOM = cv2.imread('assets/lie_detector_template_bottom.png', 0)
+LIE_DETECTOR_TEMPLATES = (
+    ('full', LIE_DETECTOR_TEMPLATE),
+    ('top', LIE_DETECTOR_TEMPLATE_TOP),
+    ('bottom', LIE_DETECTOR_TEMPLATE_BOTTOM),
+)
 
 def get_alert_path(name):
     return os.path.join(Notifier.ALERTS_DIR, f'{name}.mp3')
@@ -148,10 +155,8 @@ class Notifier:
                     print(twentoona)
                     press("esc", 1, down_time=0.1)
 
-                # Check for Lie Detector
-                lie_detector = utils.multi_match_gray(interrupting_message_gray, LIE_DETECTOR_TEMPLATE, threshold=0.9)
-                if len(lie_detector) > 0:
-                    print("Lie Detector detected")
+                # Check for Lie Detector (full, then top/bottom split templates)
+                if self._check_lie_detector(interrupting_message_gray):
                     self._alert('siren')
 
                 # Check for Skull Death
@@ -212,6 +217,18 @@ class Notifier:
                 #     config.bot.rune_active = False
                 #     self._alert('siren')
             time.sleep(0.05)
+
+    def _check_lie_detector(self, gray, threshold=0.9):
+        """Match lie detector UI: full template first, then top/bottom splits."""
+        for label, template in LIE_DETECTOR_TEMPLATES:
+            if template is None:
+                continue
+            matches = utils.multi_match_gray(gray, template, threshold=threshold)
+            if matches:
+                print(f"Lie Detector detected ({label})")
+                print(matches)
+                return True
+        return False
 
     def _alert(self, name, volume=0.75):
         """

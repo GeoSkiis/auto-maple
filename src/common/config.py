@@ -25,6 +25,12 @@ path = []
 # User-selected minimap path (File > Load Minimap). When set, auto routine uses this instead of OCR.
 selected_minimap_path = None
 
+# True while bot is aligning to a rune (suppresses aggressive vertical mobility).
+rune_aligning = False
+
+# Minimum minimap Y gap before rope lift is allowed during rune alignment.
+RUNE_VERTICAL_ROPE_MIN = 0.08
+
 
 #############################
 #       Shared Modules      #

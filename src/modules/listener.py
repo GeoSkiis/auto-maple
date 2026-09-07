@@ -79,7 +79,8 @@ class Listener(Configurable):
     def toggle_enabled():
         """Resumes or pauses the current routine. Plays a sound to notify the user."""
 
-        config.bot.rune_active = False
+        if config.enabled:
+            config.bot.abort_rune()
 
         if not config.enabled:
             Listener.recalibrate_minimap()      # Recalibrate only when being enabled.
