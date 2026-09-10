@@ -4,4 +4,5 @@ assets/models/
 .settings/
 *.iml
 failed_detections/
+lie_detector_recordings/
 .env

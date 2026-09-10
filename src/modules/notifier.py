@@ -8,6 +8,10 @@ import pygame
 import threading
 import numpy as np
 import keyboard as kb
+from datetime import datetime
+from ctypes import wintypes
+import ctypes
+import mss
 from src.common.vkeys import press
 from src.routine.components import Point
 
@@ -63,6 +67,13 @@ LIE_DETECTOR_TEMPLATES = (
     ('bottom', LIE_DETECTOR_TEMPLATE_BOTTOM),
 )
 
+LIE_DETECTOR_RECORDINGS_DIR = 'lie_detector_recordings'
+LIE_DETECTOR_RECORD_DELAY_SEC = 9
+LIE_DETECTOR_RECORD_DURATION_SEC = 20
+LIE_DETECTOR_RECORD_FPS = 30
+
+_user32 = ctypes.windll.user32
+
 def get_alert_path(name):
     return os.path.join(Notifier.ALERTS_DIR, f'{name}.mp3')
 
@@ -82,6 +93,8 @@ class Notifier:
 
         self.room_change_threshold = 0.9
         self.rune_alert_delay = 270         # 4.5 minutes
+        self._lie_record_lock = threading.Lock()
+        self._lie_record_active = False
 
     def start(self):
         """Starts this Notifier's thread."""
@@ -156,7 +169,9 @@ class Notifier:
                     press("esc", 1, down_time=0.1)
 
                 # Check for Lie Detector (full, then top/bottom split templates)
-                if self._check_lie_detector(interrupting_message_gray):
+                lie_match = self._check_lie_detector(interrupting_message_gray)
+                if lie_match:
+                    self._schedule_lie_detector_recording(lie_match)
                     self._alert('siren')
 
                 # Check for Skull Death
@@ -227,8 +242,113 @@ class Notifier:
             if matches:
                 print(f"Lie Detector detected ({label})")
                 print(matches)
-                return True
-        return False
+                return label
+        return None
+
+    def _schedule_lie_detector_recording(self, match_label):
+        """Start a background countdown + screen recording for lie detector training data."""
+        with self._lie_record_lock:
+            if self._lie_record_active:
+                print('[lie detector] recording already scheduled, skipping duplicate')
+                return
+            self._lie_record_active = True
+        thread = threading.Thread(
+            target=self._lie_detector_recording_worker,
+            args=(match_label,),
+            daemon=True,
+        )
+        thread.start()
+
+    def _lie_detector_recording_worker(self, match_label):
+        try:
+            print(
+                f"[lie detector] recording scheduled in {LIE_DETECTOR_RECORD_DELAY_SEC}s "
+                f"({LIE_DETECTOR_RECORD_DURATION_SEC}s clip, match={match_label})"
+            )
+            for remaining in range(LIE_DETECTOR_RECORD_DELAY_SEC, 0, -1):
+                print(f"[lie detector] recording starts in {remaining}s...")
+                time.sleep(1)
+            path = self._record_maplestory_clip(match_label)
+            if path:
+                print(f"[lie detector] saved training clip: {path}")
+            else:
+                print('[lie detector] recording failed (MapleStory window not found?)')
+        finally:
+            with self._lie_record_lock:
+                self._lie_record_active = False
+
+    @staticmethod
+    def _maplestory_capture_region():
+        """Return mss monitor dict for the MapleStory client window."""
+        handle = _user32.FindWindowW(None, 'MapleStory')
+        if handle:
+            rect = wintypes.RECT()
+            _user32.GetWindowRect(handle, ctypes.pointer(rect))
+            width = max(rect.right - rect.left, 1)
+            height = max(rect.bottom - rect.top, 1)
+            return {
+                'left': max(0, rect.left),
+                'top': max(0, rect.top),
+                'width': width,
+                'height': height,
+            }
+        capture = getattr(config, 'capture', None)
+        if capture is not None and getattr(capture, 'window', None):
+            return dict(capture.window)
+        return None
+
+    def _record_maplestory_clip(self, match_label):
+        """Capture LIE_DETECTOR_RECORD_DURATION_SEC of MapleStory footage to disk."""
+        region = self._maplestory_capture_region()
+        if not region:
+            return None
+
+        os.makedirs(LIE_DETECTOR_RECORDINGS_DIR, exist_ok=True)
+        stamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename = f"lie_detector_{match_label}_{stamp}.mp4"
+        out_path = os.path.join(LIE_DETECTOR_RECORDINGS_DIR, filename)
+
+        fps = LIE_DETECTOR_RECORD_FPS
+        frame_total = int(LIE_DETECTOR_RECORD_DURATION_SEC * fps)
+        interval = 1.0 / fps
+
+        with mss.mss() as sct:
+            probe = sct.grab(region)
+            width, height = probe.width, probe.height
+            if width <= 0 or height <= 0:
+                return None
+
+            writer = cv2.VideoWriter(
+                out_path,
+                cv2.VideoWriter_fourcc(*'mp4v'),
+                fps,
+                (width, height),
+            )
+            if not writer.isOpened():
+                print('[lie detector] VideoWriter failed to open, trying XVID AVI')
+                out_path = out_path.replace('.mp4', '.avi')
+                writer = cv2.VideoWriter(
+                    out_path,
+                    cv2.VideoWriter_fourcc(*'XVID'),
+                    fps,
+                    (width, height),
+                )
+                if not writer.isOpened():
+                    return None
+
+            print(f"[lie detector] recording {frame_total} frames at {fps} fps -> {out_path}")
+            for _ in range(frame_total):
+                loop_start = time.time()
+                shot = sct.grab(region)
+                frame = np.array(shot, dtype=np.uint8)
+                if frame.shape[2] == 4:
+                    frame = cv2.cvtColor(frame, cv2.COLOR_BGRA2BGR)
+                writer.write(frame)
+                sleep_for = interval - (time.time() - loop_start)
+                if sleep_for > 0:
+                    time.sleep(sleep_for)
+            writer.release()
+        return out_path
 
     def _alert(self, name, volume=0.75):
         """
